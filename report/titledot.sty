@@ -1,0 +1,88 @@
+% titledot.sty nhằm mục đích chấm các số tiêu đề và trong mục lục
+% Nguyễn Hữu Điển
+%ĐHKHTN, ĐHQG HN
+% 10/7/2009
+% Phiên bản 1.1 đã sửa đổi 23/12/2009
+% Phiên bản 1.3 đã sửa đổi 15/4/2013
+%-Chữa lại mục lục cho đẹp
+%- Dùng với Phụ lục chính xác
+%Gói lệnh đòi hỏi titlesec.sty và titletoc.sty
+
+\ProvidesPackage{titledot}[2009/07/10 v1.3 Vietnamese section]
+
+\RequirePackage{ifthen}
+\RequirePackage{titlesec}
+\RequirePackage{titletoc}
+
+\newboolean{nosubsection}
+
+\titlelabel{\thetitle. }%\quad
+\contentsmargin{0pt}
+
+\def\titletocname#1{
+\titlecontents{chapter}[0pc]
+  {\addvspace{3pt}\bfseries}
+ {#1 \ \thecontentslabel.\ }
+  {}
+  {\dotfill\quad\thecontentspage}
+}
+
+\titlecontents{section}[1pc]
+  {\addvspace{3pt}}
+ {\thecontentslabel.\ }
+ % {\contentslabel[\thecontentslabel.]{1.8pc}}
+  {}
+  {\dotfill\quad\thecontentspage}
+
+\titlecontents{subsection}[2pc]
+{}
+ {\thecontentslabel.\ }
+%   {\contentslabel[\thecontentslabel.]{2.4pc}}
+  {}
+  {\dotfill\quad\thecontentspage}
+
+\titlecontents{subsubsection}[3pc]
+{}
+   {\thecontentslabel.\  }
+  {}
+  {\dotfill\quad\thecontentspage}
+
+\DeclareOption{nosubsection}{
+\titlecontents*{subsection}[1pc]
+  {\small}
+  {\thecontentslabel. }
+  {}
+  {, \thecontentspage}
+  [.---][.]
+
+\titlecontents*{subsubsection}[2pc]
+  {\small}
+  {\thecontentslabel. }
+  {}
+  {, \thecontentspage}
+  [.---][.]
+}
+
+
+%%%%%%%%%%%
+
+\ProcessOptions
+
+\titletocname{CHƯƠNG}
+\endinput
+% \AtBeginDocument{%
+%     \frenchspacing
+%     \ifthenelse{\boolean{vnutf8}}{%
+%         \PreloadUnicodePage{0}%
+%         \PreloadUnicodePage{1}%
+%         \PreloadUnicodePage{30}%
+%         \ifx \UnicodeCharFilter \@undefined
+ %          \UCSProtectionUnichar
+%             \UCSProtectionIeC
+%         \else
+%             \UnicodeCharFilter\IeC
+%         \fi
+%    }{}}
+% }{}
+
+% end of vietnam.sty

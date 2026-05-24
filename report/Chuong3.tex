@@ -1,0 +1,198 @@
+\chapter{PHƯƠNG PHÁP ĐỀ XUẤT}
+
+Chương này trình bày phương pháp đề xuất của báo cáo nghiên cứu, bao gồm pipeline tổng thể, quy trình tổng hợp dữ liệu kết hợp hai chiến lược (few-shot và aspect-based Chain-of-Thought), hai giai đoạn huấn luyện (QLoRA theo tác vụ và tinh chỉnh toàn phần), thư viện tăng tốc Unsloth cùng các kỹ thuật tối ưu để toàn bộ quy trình chạy được trên môi trường notebook miễn phí (Kaggle/Colab) với GPU T4 16GB.
+
+\section{Pipeline tổng thể}
+
+Phương pháp đề xuất tổ chức thành năm giai đoạn liên tiếp như minh họa ở Hình~\ref{fig:pipeline}. Giai đoạn đầu tiên là chuẩn bị dữ liệu gốc: tải 440 mẫu từ ba subset, thực hiện phân tích khám phá (EDA) và chuyển đổi sang định dạng hội thoại của Qwen. Giai đoạn thứ hai là tổng hợp dữ liệu, kết hợp hai chiến lược few-shot (A) và aspect-based (B) để xây dựng tập huấn luyện gồm khoảng 2.346 mẫu sinh. Giai đoạn thứ ba huấn luyện ba adapter QLoRA riêng biệt cho ba tác vụ. Giai đoạn thứ tư hợp nhất ba adapter bằng nội suy tuyến tính rồi tinh chỉnh toàn phần mô hình đã hợp nhất. Giai đoạn cuối cùng đánh giá mô hình trên ba tác vụ. Quy trình này kế thừa kiến trúc hai giai đoạn LoRA-to-Full của MinLegal~\cite{luan2025minlegal}, đồng thời tích hợp ý tưởng phân rã theo khía cạnh của Bosch@AI~\cite{quang2025bosch} vào pipeline sinh dữ liệu.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    font=\footnotesize,
+    box/.style={rectangle, draw, rounded corners, align=center, minimum height=1cm, text width=2.3cm, fill=blue!5},
+    arr/.style={->, thick}
+]
+\node[box] (d) at (0,0) {1. Chuẩn bị\\dữ liệu gốc\\(440 mẫu)};
+\node[box, fill=orange!10] (g) at (3,0) {2. Sinh dữ liệu\\A + B\\($\sim$2.346 mẫu)};
+\node[box, fill=green!8] (s1) at (6,0) {3. Stage 1\\QLoRA\\3 adapter};
+\node[box, fill=green!8] (m) at (9,0) {4. Hợp nhất +\\Stage 2\\Full FT};
+\node[box, fill=violet!8] (e) at (12,0) {5. Đánh giá\\3 tác vụ};
+\draw[arr] (d) -- (g);
+\draw[arr] (g) -- (s1);
+\draw[arr] (s1) -- (m);
+\draw[arr] (m) -- (e);
+\end{tikzpicture}
+\caption{Pipeline tổng thể năm giai đoạn của phương pháp đề xuất.}
+\label{fig:pipeline}
+\end{figure}
+
+\section{Giai đoạn sinh dữ liệu kết hợp}
+
+Trọng tâm về tính mới của nghiên cứu nằm ở việc kết hợp hai chiến lược sinh dữ liệu vốn được áp dụng riêng rẽ trong hai phương pháp gốc, trên cùng một baseline và cùng điều kiện huấn luyện. Khác với MinLegal (dùng Gemini 2.5 Flash) và Bosch@AI (dùng GPT-4o), báo cáo này sử dụng \textbf{Anthropic Claude Haiku 4.5}~\cite{anthropic2025claude} làm mô hình giáo viên (teacher model) cho cả hai chiến lược, nhằm cân bằng giữa chất lượng sinh và chi phí. Hình~\ref{fig:datagen} mô tả tổng quan quy trình sinh dữ liệu hai nhánh.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+    font=\footnotesize,
+    box/.style={rectangle, draw, rounded corners, align=center, minimum height=0.9cm, text width=3.2cm},
+    io/.style={box, fill=gray!10},
+    proc/.style={box, fill=blue!6},
+    arr/.style={->, thick}
+]
+% Input
+\node[io] (seed) at (0,0) {440 mẫu gốc + văn bản luật};
+% Strategy A branch (top)
+\node[proc, fill=orange!10] (a1) at (4.5,1.3) {Chiến lược A: chọn 5 mẫu few-shot};
+\node[proc, fill=orange!10] (a2) at (9,1.3) {Sinh MC/NLI mới (Claude Haiku 4.5)};
+% Strategy B branch (bottom)
+\node[proc, fill=teal!10] (b1) at (4.5,-1.3) {Chiến lược B: trích khía cạnh (aspect)};
+\node[proc, fill=teal!10] (b2) at (9,-1.3) {Sinh CoT tam đoạn luận theo aspect};
+% Merge
+\node[io, fill=violet!8, text width=2.6cm] (merge) at (12.8,0) {Khử trùng lặp + gộp ($\sim$2.346)};
+\draw[arr] (seed) -- (a1);
+\draw[arr] (seed) -- (b1);
+\draw[arr] (a1) -- (a2);
+\draw[arr] (b1) -- (b2);
+\draw[arr] (a2) -- (merge);
+\draw[arr] (b2) -- (merge);
+\end{tikzpicture}
+\caption{Quy trình sinh dữ liệu kết hợp hai chiến lược. Nhánh trên (A) sinh dữ liệu MC/NLI bằng few-shot; nhánh dưới (B) sinh dữ liệu tam đoạn luận bằng aspect-based Chain-of-Thought.}
+\label{fig:datagen}
+\end{figure}
+
+\subsection{Chiến lược A - Few-shot (kiểu MinLegal)}
+
+Chiến lược A dựa trên prompting few-shot: với mỗi tác vụ, hệ thống chọn ngẫu nhiên năm mẫu gốc làm ví dụ minh họa, đưa vào prompt cùng yêu cầu sinh thêm các câu hỏi-đáp án mới tương tự về định dạng nhưng đa dạng về nội dung pháp lý (thuế, đất đai, lao động, giao thông, hình sự, dân sự...). Kết quả sinh ra được lọc tự động (loại bỏ mẫu sai định dạng) kết hợp rà soát thủ công. Chiến lược này mạnh về việc mở rộng độ phủ (bề rộng) của dữ liệu, kế thừa trực tiếp cách làm đã giúp MinLegal mở rộng từ 440 lên 3.537 mẫu và phù hợp với tinh thần bootstrap dữ liệu của Self-Instruct~\cite{wang2022self}.
+
+\subsection{Chiến lược B - Aspect-based CoT (kiểu Bosch)}
+
+Chiến lược B mô phỏng quy trình hai bước của Bosch@AI~\cite{quang2025bosch}. \textbf{Bước B.1 (trích khía cạnh)}: với mỗi điều luật, mô hình giáo viên xác định 1-3 khía cạnh pháp lý trọng yếu - chẳng hạn điều kiện áp dụng, mức xử phạt, phạm vi điều chỉnh, hay ngoại lệ. \textbf{Bước B.2 (sinh CoT)}: với mỗi khía cạnh, mô hình sinh một tình huống pháp lý kèm chuỗi suy luận (Chain-of-Thought) đặt trong thẻ tư duy \texttt{<think>...</think>}, theo sau là cấu trúc tam đoạn luận gồm tiền đề lớn, tiền đề nhỏ và kết luận. Cách phân rã theo khía cạnh dạy mô hình phân biệt các ngữ cảnh pháp lý tinh tế (ví dụ ranh giới giữa xử phạt hành chính và trách nhiệm hình sự), nâng cao chất lượng lập luận cho tác vụ tam đoạn luận và tương đồng về tinh thần với các phương pháp tăng cường dữ liệu pháp lý có kiểm soát như DALE~\cite{ghosh2023dale}.
+
+\subsection{Cấu trúc prompt}
+
+Dưới đây là các prompt được sử dụng trong quy trình sinh dữ liệu và đánh giá:
+
+\subsubsection{Prompt chiến lược A (Few-shot)}
+
+Prompt few-shot cho tác vụ trắc nghiệm và NLI có cấu trúc như sau:
+
+\begin{verbatim}
+Bạn là chuyên gia tạo dữ liệu pháp luật Việt Nam. Dưới đây là
+các ví dụ về [mô tả tác vụ].
+
+VÍ DỤ 1:
+ĐỀ: [nội dung câu hỏi mẫu 1]
+ĐÁP: [đáp án mẫu 1]
+...
+VÍ DỤ 5:
+ĐỀ: [nội dung câu hỏi mẫu 5]
+ĐÁP: [đáp án mẫu 5]
+
+Hãy tạo 6 mẫu MỚI cùng định dạng, ĐA DẠNG lĩnh vực pháp luật
+(thuế, đất đai, lao động, giao thông, bảo hiểm xã hội, hình sự,
+dân sự, hôn nhân gia đình, doanh nghiệp...).
+
+Yêu cầu:
+- Nội dung phải chính xác theo pháp luật Việt Nam hiện hành
+- Đa dạng về độ khó (dễ, trung bình, khó)
+- Không trùng lặp với các ví dụ đã cho
+
+Trả về JSON array, mỗi phần tử có 2 key:
+- "user": nội dung đề bài
+- "assistant": đáp án
+\end{verbatim}
+
+\subsubsection{Prompt chiến lược B (Aspect-based CoT)}
+
+\textbf{Prompt trích khía cạnh (B.1)}:
+\begin{verbatim}
+Dựa trên văn bản pháp luật được cung cấp, hãy xác định 1-3
+khía cạnh pháp lý riêng biệt, điểm chính hoặc chủ đề được
+bao quát (ví dụ: điều kiện áp dụng, mức xử phạt, phạm vi
+điều chỉnh, ngoại lệ).
+
+Nội dung văn bản:
+"""[văn bản pháp luật]"""
+
+Trả về CHỈ MỘT đối tượng JSON: { "aspects": ["Khía cạnh 1",
+"Khía cạnh 2", ...] }
+\end{verbatim}
+
+\textbf{Prompt sinh suy luận (B.2)}:
+\begin{verbatim}
+Bạn là chuyên gia pháp luật Việt Nam chuyên tổng hợp dữ liệu.
+Dựa trên văn bản pháp luật và các khía cạnh đã xác định, hãy
+tạo các ví dụ tam đoạn luận pháp lý.
+
+Văn bản pháp luật:
+"""[văn bản pháp luật]"""
+
+Các khía cạnh pháp lý: [danh sách khía cạnh]
+
+Với MỖI khía cạnh, tạo một câu hỏi tình huống pháp lý mở và
+lời giải có cấu trúc:
+- Phần phân tích chi tiết đặt trong thẻ <think>...</think>
+- Sau đó lần lượt ghi:
+  Tiền đề lớn: <quy phạm pháp luật chung>
+  Tiền đề nhỏ: <tình huống cụ thể>
+  Kết luận: <hệ quả pháp lý có căn cứ>
+
+Trả về JSON array, mỗi phần tử có 2 key:
+- "question": tình huống pháp lý cần phân tích
+- "reasoning": lời giải đầy đủ
+\end{verbatim}
+
+\subsubsection{Prompt đánh giá tam đoạn luận (LLM-as-Judge)}
+
+Prompt dùng Claude Haiku 4.5 làm giám khảo cho tác vụ tam đoạn luận:
+\begin{verbatim}
+Bạn là giám khảo chấm điểm câu trả lời tam đoạn luận pháp lý.
+Cho điểm từ 0.0 đến 1.0 dựa trên tính đúng đắn của tiền đề
+lớn, tiền đề nhỏ và tính hợp lý của kết luận.
+Chỉ trả về một con số, không giải thích.
+
+Câu hỏi:
+[tình huống pháp lý]
+
+Câu trả lời:
+[câu trả lời của mô hình]
+\end{verbatim}
+
+Việc ràng buộc đầu ra ở định dạng JSON giúp tự động hóa khâu trích xuất và lọc, giảm thiểu can thiệp thủ công.
+
+\subsection{Hợp nhất và kiểm soát chất lượng}
+
+Dữ liệu sinh từ hai chiến lược được gộp lại, khử trùng lặp ngữ nghĩa (dựa trên vân tay băm MD5 của nội dung đã chuẩn hóa), cân bằng số lượng theo tác vụ và chuẩn hóa về định dạng hội thoại Qwen với một system prompt thống nhất. Để bảo đảm tính hợp lệ của đánh giá, tập dữ liệu sinh được tách biệt hoàn toàn khỏi 440 mẫu public test nhằm tránh rò rỉ dữ liệu. Giả thuyết nghiên cứu là hai chiến lược bù trừ cho nhau: A nâng độ phủ còn B nâng chất lượng suy luận; giả thuyết này được kiểm chứng định tính qua phân tích đóng góp từng chiến lược ở Chương thực nghiệm.
+
+\subsection{Cấu hình kỹ thuật sinh dữ liệu}
+
+Quy trình sinh dữ liệu được tách thành một mã nguồn Python độc lập, chạy trước khi huấn luyện để tạo file JSON chứa dữ liệu tổng hợp. Cấu hình kỹ thuật như sau:
+
+\begin{itemize}
+    \item \textbf{Mô hình sinh}: Claude Haiku 4.5 (\texttt{claude-haiku-4-5}) qua Anthropic API, thay cho Gemini/GPT-4o nhằm cân bằng chi phí và chất lượng.
+    \item \textbf{Giới hạn tốc độ}: $\sim$1 giây giữa các lần gọi API kèm cơ chế retry với backoff lũy thừa.
+    \item \textbf{Số mẫu sinh}: sau khi lọc các mẫu không hợp lệ về đáp án/cấu trúc và khử trùng lặp, thu được MC 894, NLI 900, tam đoạn luận 552 (giới hạn bởi số văn bản nguồn của chiến lược B), tổng cộng 2.346 mẫu sinh. Toàn bộ 2.346 mẫu sinh tạo thành tập huấn luyện; 440 mẫu gốc được giữ riêng làm tập đánh giá (eval-only), không trộn vào huấn luyện nhằm tránh rò rỉ dữ liệu.
+    \item \textbf{Cơ chế checkpoint}: lưu trạng thái sau mỗi batch để tiếp tục được khi bị gián đoạn (phiên notebook timeout hoặc lỗi API).
+    \item \textbf{Khử trùng lặp}: loại bỏ mẫu trùng dựa trên băm nội dung đã chuẩn hóa.
+\end{itemize}
+
+Việc tách riêng sinh dữ liệu khỏi huấn luyện mang lại hai lợi ích: (1) có thể kiểm tra, rà soát và chỉnh sửa thủ công dữ liệu tổng hợp trước khi huấn luyện; (2) tiết kiệm thời gian khi cần chạy lại huấn luyện mà không phải sinh lại dữ liệu.
+
+\section{Giai đoạn 1 - QLoRA theo từng tác vụ}
+
+Ở giai đoạn 1, nghiên cứu huấn luyện ba adapter QLoRA độc lập, mỗi adapter chuyên cho một tác vụ (trắc nghiệm, NLI, tam đoạn luận). Mỗi adapter được áp dụng lên bảy ma trận chiếu của khối Transformer (\texttt{q\_proj}, \texttt{k\_proj}, \texttt{v\_proj}, \texttt{o\_proj}, \texttt{gate\_proj}, \texttt{up\_proj}, \texttt{down\_proj}) với cấu hình hạng $r=16$, hệ số tỉ lệ $\alpha=32$ và tỉ lệ dropout 0,1. Mô hình nền được lượng tử hóa 4-bit NF4 thông qua thư viện Unsloth, theo đúng cơ chế QLoRA~\cite{dettmers2023qlora}. Tốc độ học ở giai đoạn này là $2 \times 10^{-4}$, huấn luyện trong 3 epoch với độ dài chuỗi tối đa 2048 token. Việc tách riêng từng adapter giúp mỗi tác vụ học được đặc trưng chuyên biệt mà không bị nhiễu chéo từ các tác vụ khác.
+
+Sau khi chọn checkpoint tốt nhất cho từng tác vụ, ba adapter được hợp nhất bằng \emph{nội suy tuyến tính}: trọng số của adapter gộp là trung bình có trọng số của ba adapter thành phần. Do mỗi adapter chỉ tham số hóa lượng cập nhật hạng thấp $\Delta W = BA$~\cite{hu2022lora}, việc nội suy tuyến tính trên không gian tham số adapter là khả thi và rẻ về tính toán, tạo ra một điểm khởi tạo (warm start) cân bằng cho cả ba năng lực trước khi bước sang giai đoạn 2.
+
+\section{Giai đoạn 2 - Tinh chỉnh adapter hợp nhất}
+
+Giai đoạn 2 khởi tạo từ adapter đã hợp nhất ở giai đoạn 1 và tiếp tục huấn luyện adapter này trên toàn bộ tập dữ liệu gộp trong 2 epoch, với tốc độ học $5 \times 10^{-5}$ - thấp hơn giai đoạn 1 để tránh phá vỡ tri thức đã học. Mục đích của giai đoạn này là ``hòa giải'' ba năng lực riêng lẻ thành một mô hình thống nhất. Nhờ điểm khởi tạo tốt từ giai đoạn 1, quá trình hội tụ nhanh và ổn định chỉ trong 2 epoch. Lưu ý rằng do giới hạn bộ nhớ GPU T4 16GB, nghiên cứu không thực hiện full fine-tuning (huấn luyện toàn bộ tham số) như MinLegal~\cite{luan2025minlegal} gốc mà vẫn duy trì cơ chế LoRA ở cả hai giai đoạn.
+
+\section{Thư viện tăng tốc Unsloth}
+
+Toàn bộ quá trình huấn luyện được hiện thực trên thư viện \textbf{Unsloth}~\cite{unsloth2024} - một framework tối ưu hóa việc huấn luyện các mô hình ngôn ngữ lớn trên phần cứng hạn chế. Unsloth viết lại các nhân tính toán (kernel) của khối Transformer bằng Triton và áp dụng nhiều kỹ thuật tối ưu bộ nhớ, nhờ đó giảm đáng kể mức tiêu thụ VRAM và tăng tốc độ huấn luyện so với cách triển khai chuẩn của Hugging Face, trong khi vẫn giữ độ chính xác. Nghiên cứu khai thác Unsloth ở ba điểm: (1) nạp mô hình nền dưới dạng lượng tử hóa 4-bit NF4 qua \texttt{FastLanguageModel}; (2) gắn adapter LoRA và bật gradient checkpointing tối ưu theo cơ chế riêng của Unsloth; (3) sử dụng \texttt{UnslothTrainer} cho vòng huấn luyện giám sát. Việc dùng \texttt{UnslothTrainer} thay cho \texttt{SFTTrainer} của thư viện TRL cũng giúp tránh các vấn đề tương thích phiên bản API thường gặp trên Colab. Đây chính là yếu tố then chốt cho phép tinh chỉnh adapter trên mô hình bốn tỷ tham số với một GPU T4 16GB.
+
+\section{Tối ưu cho môi trường notebook miễn phí}
+
+Một đóng góp thực dụng của nghiên cứu là chứng minh toàn bộ quy trình chạy được trên một GPU T4 16GB miễn phí (thực nghiệm chạy trên Kaggle). Để vừa giới hạn bộ nhớ khi tinh chỉnh adapter trên mô hình bốn tỷ tham số, nghiên cứu kết hợp nhiều kỹ thuật: lượng tử hóa 4-bit qua Unsloth, gradient checkpointing để đánh đổi tính toán lấy bộ nhớ, giới hạn độ dài chuỗi ở 2048 token và tích lũy gradient để mô phỏng batch lớn. Cụ thể, hệ thống tự phát hiện loại GPU và điều chỉnh cấu hình: trên T4 dùng kích thước batch 2 với hệ số tích lũy gradient 16 và độ chính xác fp16; trên A100 dùng batch 8 với tích lũy 4 và độ chính xác bf16, giữ batch hiệu dụng bằng 32 trong cả hai trường hợp. Cơ chế tự thích ứng phần cứng này bảo đảm cùng một quy trình có thể chạy trên cả hai loại GPU mà không cần sửa thủ công. Toàn bộ siêu tham số được tổng hợp trong Bảng cấu hình ở Chương thực nghiệm, và checkpoint được lưu định kỳ lên lưu trữ ngoài để phòng trường hợp phiên notebook bị ngắt.

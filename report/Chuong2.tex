@@ -1,0 +1,35 @@
+\chapter{BÀI TOÁN VÀ BỘ DỮ LIỆU}
+
+Chương này mô tả chi tiết bài toán nghiên cứu thông qua bộ dữ liệu VLSP2025-LegalSML Public Test, bao gồm ba tác vụ thành phần, định dạng đầu vào/đầu ra của từng tác vụ, các thách thức đặc thù và phương pháp đánh giá được sử dụng trong báo cáo nghiên cứu.
+
+\section{Tổng quan bài toán pháp lý}
+
+Bài toán được nghiên cứu trong báo cáo này xuất phát từ cuộc thi VLSP2025-LegalSML, nhằm xây dựng một mô hình ngôn ngữ nhỏ (không quá bốn tỷ tham số) có khả năng hỗ trợ các tác vụ pháp lý tiếng Việt. Khác với các hệ thống hỏi đáp pháp lý thông thường chỉ tập trung vào một dạng câu hỏi, bài toán này yêu cầu một mô hình duy nhất giải quyết đồng thời ba tác vụ có bản chất khác nhau: suy luận tự nhiên (NLI), trắc nghiệm (Multiple Choice) và suy luận tam đoạn luận (Syllogism). Điều này phản ánh đúng yêu cầu thực tế của một trợ lý pháp lý: vừa phải truy hồi chính xác tri thức luật, vừa phải suy luận có cấu trúc khi áp dụng pháp luật vào tình huống cụ thể.
+
+Bộ dữ liệu Public Test gồm tổng cộng 440 mẫu, được phân bổ tương đối đều cho ba tác vụ: 150 mẫu NLI, 146 mẫu trắc nghiệm và 144 mẫu tam đoạn luận. Bộ dữ liệu được tải trực tiếp từ HuggingFace Hub thông qua ba subset \texttt{nli\_questions}, \texttt{multichoice\_questions} và \texttt{syllogism\_questions}. Quy mô nhỏ của bộ dữ liệu chính là một trong những thách thức cốt lõi mà báo cáo nghiên cứu phải giải quyết thông qua chiến lược tổng hợp dữ liệu trình bày ở Chương~3.
+
+\section{Tác vụ 1 - Suy luận tự nhiên (NLI)}
+
+Tác vụ NLI gồm 150 mẫu, là bài toán phân loại nhị phân. Mỗi mẫu cung cấp một trích đoạn điều luật (\texttt{legal\_document}) cùng một câu hỏi cụ thể (\texttt{specific\_question}), kèm theo một câu hỏi cố định: liệu điều luật được cung cấp có thể dùng để trả lời câu hỏi trên hay không. Mô hình phải đưa ra đáp án ``Có'' (nhãn 0) hoặc ``Không'' (nhãn 1).
+
+Định dạng đầu vào ghép nối điều luật, câu hỏi cụ thể và câu hỏi cố định, trong đó mô hình được yêu cầu chỉ trả lời ``Có'' hoặc ``Không''. Bản chất của tác vụ này là \emph{đánh giá tính hữu ích của trích dẫn} (citation usefulness): mô hình phải xác định liệu điều luật được cung cấp có thể dùng để trả lời câu hỏi hay không, chứ không phải bài toán suy luận bao hàm (entailment) cổ điển. Phương pháp Bosch@AI~\cite{quang2025bosch} cũng gọi tác vụ này là ``Citation Usefulness''. Dù vậy, đây vẫn là dạng bài đòi hỏi mô hình hiểu sâu ngữ nghĩa pháp lý của cả điều luật lẫn câu hỏi.
+
+\section{Tác vụ 2 - Trắc nghiệm (Multiple Choice)}
+
+Tác vụ trắc nghiệm gồm 146 mẫu. Mỗi mẫu gồm một câu hỏi (\texttt{question}) và một danh sách bốn lựa chọn (\texttt{choices}); mô hình phải chọn ra đáp án đúng nhất, biểu diễn bằng số nguyên từ 0 đến 3. Trong quá trình huấn luyện, bốn lựa chọn được gán nhãn lần lượt là A, B, C, D và mô hình được yêu cầu chỉ trả lời bằng một chữ cái duy nhất, giúp đơn giản hóa việc trích xuất và đối chiếu đáp án khi đánh giá.
+
+Tác vụ này chủ yếu kiểm tra năng lực truy hồi tri thức (factual recall) và áp dụng quy phạm pháp luật. Đây là tác vụ mà các phương pháp dẫn đầu đạt độ chính xác cao nhất, với MinLegal đạt 95,89\% và Bosch@AI đạt 92,67\%, cho thấy mô hình SLM được tinh chỉnh tốt có khả năng ghi nhớ tri thức pháp lý đáng tin cậy.
+
+\section{Tác vụ 3 - Suy luận tam đoạn luận (Syllogism)}
+
+Tác vụ tam đoạn luận gồm 144 mẫu và là tác vụ khó nhất. Đầu vào là một tình huống pháp lý (\texttt{question}), còn đầu ra là một đoạn văn bản tự do trình bày lập luận theo cấu trúc ba phần: tiền đề lớn (quy phạm pháp luật áp dụng), tiền đề nhỏ (sự kiện của tình huống) và kết luận (kết quả pháp lý). Khác với hai tác vụ trên, tập public test của tác vụ này không cung cấp đáp án vàng, do đó việc đánh giá phải dựa trên một mô hình giám khảo tự động.
+
+Tác vụ tam đoạn luận phản ánh trực tiếp quy trình áp dụng pháp luật trong thực tế và đòi hỏi mô hình không chỉ truy hồi tri thức mà còn lập luận đa bước có cấu trúc. Đây là điểm yếu chung của các phương pháp hiện có: MinLegal chỉ đạt 62,50\% và Bosch@AI đạt 53,58\% trên tác vụ này, thấp hơn nhiều so với hai tác vụ còn lại.
+
+\section{Phân tích thách thức}
+
+Bài toán đặt ra bốn thách thức chính. Thứ nhất là \emph{khan hiếm dữ liệu}: chỉ khoảng 150 mẫu cho mỗi tác vụ, không đủ để tinh chỉnh trực tiếp một mô hình bốn tỷ tham số, đòi hỏi phải tổng hợp thêm dữ liệu. Thứ hai là \emph{tài nguyên tính toán hạn chế}: mục tiêu của nghiên cứu là triển khai trên GPU T4 16GB miễn phí (thực nghiệm trên Kaggle), thấp hơn nhiều so với hạ tầng A30/A100 mà các phương pháp gốc sử dụng. Thứ ba là \emph{sự đa dạng về năng lực}: ba tác vụ đòi hỏi ba loại năng lực khác nhau (suy luận bao hàm, truy hồi tri thức, lập luận đa bước), khó tối ưu đồng thời trong một mô hình duy nhất. Thứ tư là \emph{đặc thù ngôn ngữ pháp lý tiếng Việt}: thuật ngữ chuyên ngành, cấu trúc phân cấp điều--khoản--điểm và các tham chiếu chéo giữa văn bản luật, vốn là rào cản đã được ghi nhận trong các nghiên cứu trước~\cite{nguyen2025vlqa, ha2024vibidlqa}.
+
+\section{Phương pháp đánh giá}
+
+Do ba tác vụ có dạng đầu ra khác nhau, báo cáo nghiên cứu sử dụng hai cơ chế đánh giá tương ứng. Đối với NLI và trắc nghiệm, đầu ra là rời rạc nên áp dụng độ đo \emph{khớp chính xác} (exact match): so sánh trực tiếp đáp án mô hình sinh ra với đáp án vàng sau khi chuẩn hóa, và báo cáo độ chính xác (accuracy). Đối với tam đoạn luận, do không có đáp án vàng và đầu ra là văn bản tự do, nghiên cứu sử dụng cơ chế \emph{mô hình ngôn ngữ làm giám khảo} (LLM-as-a-Judge): mô hình Claude Haiku 4.5 được cung cấp một rubric chấm điểm để đánh giá chất lượng lập luận về tính đúng đắn của quy phạm được viện dẫn, tính phù hợp của tiền đề nhỏ và tính hợp lý của kết luận. Việc thay thế mô hình giám khảo lớn (như Qwen3-32B trong các phương pháp gốc) bằng Claude Haiku 4.5 giúp giảm đáng kể chi phí mà vẫn đảm bảo khả năng đánh giá tự động. Điểm tổng hợp cuối cùng (Avg) được tính bằng trung bình cộng kết quả của ba tác vụ, nhất quán với cách tính của cuộc thi để thuận tiện cho việc so sánh tham chiếu với MinLegal~\cite{luan2025minlegal} và Bosch@AI~\cite{quang2025bosch}.

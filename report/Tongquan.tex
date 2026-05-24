@@ -1,0 +1,33 @@
+\addcontentsline{toc}{chapter}{MỞ ĐẦU}
+\chapter*{MỞ ĐẦU}
+
+\section*{Lý do chọn đề tài}
+
+Trong những năm gần đây, các mô hình ngôn ngữ lớn (Large Language Models - LLM) đã tạo ra bước tiến vượt bậc trong xử lý ngôn ngữ tự nhiên, đặc biệt ở các tác vụ chuyên môn đòi hỏi khả năng suy luận phức tạp. Tuy nhiên, việc triển khai các mô hình quy mô hàng chục đến hàng trăm tỷ tham số đòi hỏi tài nguyên tính toán khổng lồ, chi phí vận hành cao và khó kiểm soát trong các môi trường nhạy cảm về bảo mật dữ liệu. Lĩnh vực pháp lý là một ví dụ điển hình: văn bản luật mang tính đặc thù cao, đòi hỏi độ chính xác tuyệt đối, đồng thời dữ liệu pháp lý nội bộ của tổ chức không nên gửi ra các dịch vụ đám mây bên ngoài. Điều này làm nảy sinh nhu cầu về các mô hình ngôn ngữ nhỏ (Small Language Model - SLM) có khả năng tinh chỉnh và triển khai cục bộ với chi phí hợp lý mà vẫn đảm bảo chất lượng suy luận pháp lý.
+
+Đối với tiếng Việt, bài toán càng trở nên thách thức do đây là ngôn ngữ ít tài nguyên trong lĩnh vực pháp lý. Số lượng bộ dữ liệu chất lượng cao còn hạn chế, hệ thống pháp luật có cấu trúc riêng (điều, khoản, điểm) và yêu cầu suy luận tam đoạn luận (syllogism) trong áp dụng pháp luật đòi hỏi mô hình không chỉ ghi nhớ tri thức mà còn lập luận có cấu trúc. Cuộc thi VLSP2025-LegalSML đã đặt ra ba tác vụ tiêu biểu: suy luận tự nhiên (NLI), trắc nghiệm (Multiple Choice) và suy luận tam đoạn luận (Syllogism), phản ánh trực tiếp các năng lực cần thiết của một trợ lý pháp lý. Hai phương pháp dẫn đầu cuộc thi: Bosch@AI~\cite{quang2025bosch} (hạng 1) và MinLegal~\cite{luan2025minlegal} (hạng 2) đã chứng minh tiềm năng của hướng tiếp cận tinh chỉnh SLM trên nền mô hình Qwen3-4B~\cite{yang2025qwen3} đã được thích ứng miền pháp lý tiếng Việt.
+
+ Dựa trên kết quả và phương pháp của hai đội đứng đầu, đề tài này tái triển khai và phân tích quy trình tinh chỉnh hai giai đoạn (LoRA-to-Full) trên nền tảng Kaggle Notebook với GPU T4 16GB, sử dụng mô hình nền \textbf{qwen3-4b-legal-pretrain} do ban tổ chức cung cấp. Mục tiêu không phải vượt qua các phương pháp hiện có mà là khảo sát khả năng áp dụng pipeline huấn luyện SLM cho lĩnh vực pháp luật Việt Nam trong điều kiện tài nguyên hạn chế, đồng thời so sánh hiệu quả của hai chiến lược sinh dữ liệu (few-shot sampling và aspect-based CoT) thông qua thực nghiệm.
+
+\section*{Mục tiêu nghiên cứu}
+
+Mục tiêu tổng quát của nghiên cứu là xây dựng và đánh giá một mô hình ngôn ngữ nhỏ cho lĩnh vực pháp lý tiếng Việt có khả năng giải quyết đồng thời ba tác vụ NLI, trắc nghiệm và tam đoạn luận. Các mục tiêu cụ thể bao gồm:
+
+\begin{itemize}
+    \item Đề xuất quy trình tổng hợp dữ liệu giữa chiến lược few-shot (MinLegal) và chiến lược trích xuất khía cạnh (aspect-based, Bosch@AI) trên cùng một baseline.
+    \item Áp dụng kỹ thuật tinh chỉnh hiệu quả tham số QLoRA~\cite{dettmers2023qlora} kết hợp quy trình hai giai đoạn: huấn luyện ba adapter LoRA~\cite{hu2022lora} riêng biệt rồi hợp nhất, sau đó tiếp tục tinh chỉnh adapter hợp nhất trên dữ liệu gộp.
+    \item Đánh giá thực nghiệm và so sánh hiệu quả của hai chiến lược sinh dữ liệu trên cùng điều kiện huấn luyện.
+    \item Chứng minh tính khả thi của toàn bộ quy trình trên môi trường tính toán hạn chế (GPU T4 16GB miễn phí, thực nghiệm trên Kaggle).
+\end{itemize}
+
+\section*{Đối tượng và phạm vi nghiên cứu}
+
+Đối tượng nghiên cứu là mô hình ngôn ngữ nhỏ Qwen3-4B đã được thích ứng miền pháp lý (\texttt{VLSP2025-LegalSML/qwen3-4b-legal-pretrain}) cùng các kỹ thuật tinh chỉnh hiệu quả tham số. Phạm vi nghiên cứu giới hạn trong ba tác vụ của bộ dữ liệu VLSP2025-LegalSML Public Test (440 mẫu).
+
+\section*{Phương pháp nghiên cứu}
+
+Bài báo cáo sử dụng kết hợp phương pháp nghiên cứu lý thuyết và thực nghiệm. Về lý thuyết, chúng tôi tổng hợp và phân tích các công trình liên quan về SLM, tinh chỉnh hiệu quả tham số. Về thực nghiệm, chúng tôi xây dựng pipeline tổng hợp dữ liệu, huấn luyện mô hình theo cấu hình đã chốt và đánh giá bằng độ đo khớp chính xác (exact match) cho NLI/MC kết hợp đánh giá bằng mô hình ngôn ngữ lớn Claude Haiku 4.5 cho tác vụ tam đoạn luận thông qua Anthropic API.
+
+\section*{Cấu trúc báo cáo}
+
+Ngoài phần Mở đầu và Kết luận, bài báo cáo nghiên cứu được tổ chức thành bốn chương: Chương 1 trình bày kiến thức cơ sở về SLM, LoRA/QLoRA và NLP pháp lý tiếng Việt cùng các công trình liên quan; Chương 2 mô tả bộ dữ liệu và quy trình tổng hợp dữ liệu; Chương 3 trình bày phương pháp đề xuất và cấu hình huấn luyện; Chương 4 trình bày kết quả thực nghiệm, phân tích và so sánh.

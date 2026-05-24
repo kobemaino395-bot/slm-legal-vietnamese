@@ -1,0 +1,253 @@
+\documentclass[a4paper,reqno,oneside]{book}
+% \documentclass[a4paper,13pt,3p]{report}
+\usepackage[utf8]{vietnam}
+\usepackage[mathscr]{eucal}
+\usepackage{amsfonts,amsxtra,amssymb,amsmath,latexsym,amscd,amsthm}
+
+\nocite{*}
+
+
+\usepackage[acronym, section=chapter, nogroupskip, nopostdot]{glossaries}
+\usepackage{cases}
+\usepackage{tikz}
+\usetikzlibrary{bayesnet}
+\usepackage{scrextend}
+\changefontsizes{13pt}
+%\usepackage{subfigure}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{indentfirst}
+\usepackage{color}
+\usepackage{colortbl}
+\usepackage{graphics}
+\usepackage{graphicx}
+\usepackage[caption=false]{subfig}
+
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{tikz-dependency}
+\usepackage{xytree}
+\usepackage{pst-tree}
+\usepackage{url} 
+\usepackage{amsmath,amssymb}
+\usepackage{caption}
+\usepackage{wrapfig}
+\usepackage{lscape}
+
+
+\usepackage{fancybox}
+\usepackage{fancyhdr}
+\usepackage{titledot}
+\usepackage{longtable}
+
+\usepackage{tabularx}
+\usepackage{titlesec} % Dinh nghia font chu cho section 
+\usepackage[shortlabels, inline]{enumitem}
+% \usepackage{caption}
+%\usepackage{subcaption}
+\usepackage{pbox}
+\usepackage{appendix}
+\usepackage{pgfplots}
+\usepackage{epstopdf}
+\usepackage{url}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem} 
+\usepackage{wrapfig}
+\usepackage{filecontents}
+\usetikzlibrary{matrix}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=newest}
+\usepackage{color}
+\usepackage[ruled,vlined,algo2e]{algorithm2e}
+\usepackage[left=3.5cm, right=2cm, top=3.5cm, bottom=3cm]{geometry}
+\renewcommand{\theequation}{\arabic{chapter}.\arabic{equation}}
+\newcommand{\argmin}{\text{argmin}}
+\newcommand{\argmax}{\text{argmax}}
+\makeatletter
+
+\renewcommand{\ALG@name}{Thuật toán}
+\@addtoreset{algorithm}{chapter} 
+\renewcommand{\thealgorithm}{\thechapter.\arabic{algorithm}}
+\makeatother
+\usepackage{tabulary}
+\renewcommand{\algorithmicrequire}{\textbf{Đầu vào:}}
+\renewcommand{\algorithmicensure}{\textbf{Đầu ra:}}
+
+\newtheorem{lemma}{\bf Bổ đề}[chapter]
+\newtheorem{theorem}{\bf Định lý}[chapter]
+\newtheorem{proposition}{\bf Mệnh đề}[chapter]
+\newtheorem{corollary}{\bf Hệ quả}[chapter]
+\newtheorem{definition}{Định nghĩa}[chapter]
+\newtheorem{remark}{\bf Chú ý}[chapter]
+
+%Phan them vao tu mau cT
+
+\newtheorem{problem}{Bài toán}
+\newtheorem{lem}[theorem]{Bổ đề}
+\newtheorem{pro}[theorem]{Mệnh đề} %proposition
+% \theoremstyle{definition}
+% \newtheorem{defi}[theorem]{Định nghĩa}
+\theoremstyle{remark}
+%\newtheorem{note}[theorem]{\bf Chú ý}
+\newtheorem{vd}[theorem]{\bf Ví dụ}
+\newtheorem{nx}[theorem]{\bf Nhận xét}
+\newtheorem{proceduce}[theorem]{\bf Thủ tục}
+% \newtheorem{remark}[theorem]{\bf Nhận xét}
+\newtheoremstyle{vd}% name
+{3pt}%      Space above
+{3pt}%      Space below
+{}%         Body font
+{}%         Indent amount (empty = no indent, \parindent = para indent)
+{\bfseries}% Thm head font
+{.}%        Punctuation after thm head
+{.5em}%     Space after thm head: " " = normal interword space;
+%       \newline = linebreak
+{}% 
+
+
+\renewcommand*{\thepage}{\large\arabic{page}}
+\makeatletter
+\def\ps@myheadings{%
+\def\@evenhead{\hfil\large\thepage\hfil}
+\def\@oddhead{\hfil\large\thepage\hfil}}
+\fancyfoot[C]{} %remove page number from footer
+\makeatother
+\pagestyle{plain}
+
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+    {\normalfont\Large\bfseries\centering}{\chaptertitlename\ \thechapter}{5pt}{\Large}
+\titlespacing*{\chapter}{0pt}{10pt}{30pt}
+% Dinh nghia font chu cho section 
+
+\usepackage{titlesec}
+
+\titleformat*{\section}{\Large\bfseries \fontsize{13}{14}\selectfont}
+\titleformat*{\subsection}{\Large\bfseries \fontsize{13}{14}\selectfont}
+\titleformat*{\subsubsection}{\Large\bfseries \fontsize{13}{14}\selectfont}
+\titleformat*{\subsubsection}{\Large\bfseries \fontsize{13}{14}\selectfont}
+\titleformat*{\paragraph}{\large\bfseries \fontsize{13}{14}\selectfont}
+\titleformat*{\subparagraph}{\large\bfseries \fontsize{13}{14}\selectfont}
+
+
+\usepackage{alltt}
+
+% DINH NGHIA CLEARPAGE CO DANH DAU TRANG
+\usepackage{fancyhdr}
+
+\fancypagestyle{myplain}
+{
+  \fancyhf{}
+  \renewcommand\headrulewidth{0pt}
+  \renewcommand\footrulewidth{0pt}
+  \fancyfoot[C]{\thepage}
+}
+
+
+% BAT DAU NOI DUNG LUAN AN
+\usepackage{cases} 
+
+\begin{document}
+\newpage
+% \tableofcontents
+% \newpage
+
+% \setcounter{tocdepth}{2}% Do sau cua muc luc
+\input{bia1.tex}
+
+\newpage
+\input{bia2.tex}
+\newpage
+\pagenumbering{roman}
+\setcounter{page}{1}
+\frontmatter
+\fontsize{13pt}{20pt}\selectfont
+\input{loicamdoan.tex}
+ \addcontentsline{toc}{chapter}{LỜI CAM ĐOAN}
+ \thispagestyle{myplain}
+\newpage
+\fontsize{13pt}{20pt}
+\input{loicamon.tex}
+\addcontentsline{toc}{chapter}{LỜI CẢM ƠN}
+\thispagestyle{myplain}
+
+\newpage
+% \pagenumbering{roman}
+% \setcounter{page}{1}
+\setcounter{secnumdepth}{4}% Do sau cua muc luc
+\fontsize{13pt}{20pt}\selectfont
+\def\contentsname{\Large M\d{U}C L\d{U}C}
+\addcontentsline{toc}{chapter}{MỤC LỤC}
+\tableofcontents
+
+%\mainmatter
+\newpage
+\fontsize{13pt}{20pt}\selectfont
+\input{viettat.tex}
+
+\newpage
+\addcontentsline{toc}{chapter}{DANH MỤC HÌNH VẼ}
+\def\listfigurename{DANH M\d{U}C H\`INH V\~E}
+\listoffigures 
+% ==================
+\newpage
+\addcontentsline{toc}{chapter}{DANH MỤC BẢNG BIỂU}
+\def\listtablename{DANH M\d{U}C B\h{A}NG}%
+\listoftables
+% ==================
+% \newpage
+% \fontsize{13pt}{13pt}\selectfont
+% \input{noidung/kihieutoanhoc.tex}
+% \newpage
+
+\mainmatter 
+
+\fontsize{13pt}{13pt}\selectfont
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\input{Tongquan.tex}% Loi noi dau
+\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{Chuong1.tex}
+\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{Chuong2.tex}
+\newpage
+%\fontsize{13pt}{13pt}\selectfont
+%\input{ChuongMoi/Chuong2-1.tex}
+%\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{Chuong3.tex}
+\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{Chuong4}
+\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{ketluan.tex}
+\newpage
+\fontsize{13pt}{13pt}\selectfont
+\input{Congtrinh.tex}
+\newpage
+% \fontsize{13pt}{13t}\selectfont
+\addcontentsline{toc}{chapter}{TÀI LIỆU THAM KHẢO}
+\def\bibname{T\`AI LI\d\ECIRCUMFLEX U THAM KH\h{A}O}%
+
+\input{tltk.tex}
+% \bibliographystyle{luanvan}
+
+
+% \bibliographystyle{acm}
+% \bibliographystyle{apalike}
+%  \bibliography{tailieuthamkhao}
+
+% \printbibliography
+
+
+\addcontentsline{toc}{chapter}{PHỤ LỤC}
+\newpage
+\input{Phuluc.tex}
+
+\end{document}

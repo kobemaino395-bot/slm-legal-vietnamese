@@ -1,0 +1,126 @@
+\chapter{KIẾN THỨC CƠ SỞ VÀ CÁC CÔNG TRÌNH LIÊN QUAN}
+
+Chương này trình bày các khái niệm và kiến thức nền tảng làm cơ sở cho báo cáo nghiên cứu, bao gồm: mô hình ngôn ngữ nhỏ và mô hình nền Qwen3, kỹ thuật tinh chỉnh hiệu quả tham số LoRA và QLoRA, đặc thù của xử lý ngôn ngữ tự nhiên trong lĩnh vực pháp lý tiếng Việt và tổng quan các công trình liên quan.
+
+% ============================================================
+\section{Mô hình ngôn ngữ nhỏ (Small Language Model)}
+% ============================================================
+
+Mô hình ngôn ngữ lớn dựa trên kiến trúc Transformer đã đạt năng lực ấn tượng trên nhiều tác vụ, nhưng kích thước hàng chục đến hàng trăm tỷ tham số khiến chúng khó triển khai trong thực tế bởi các cá nhân và tổ chức quy mô vừa và nhỏ. Mô hình ngôn ngữ nhỏ (Small Language Model - SLM) - thường được định nghĩa là các mô hình có quy mô từ vài trăm triệu đến khoảng mười tỷ tham số - xuất hiện như một hướng đi cân bằng giữa năng lực và chi phí. Ưu điểm của SLM bao gồm: chi phí triển khai thấp, khả năng triển khai cục bộ để bảo mật dữ liệu và đặc biệt phù hợp để được tinh chỉnh chuyên sâu cho một lĩnh vực hẹp như pháp lý. Trong các lĩnh vực chuyên biệt, một SLM được tinh chỉnh tốt có thể vượt qua một LLM tổng quát vì nó tập trung tri thức vào đúng phân phối dữ liệu cần giải quyết.
+
+\subsection{Mô hình nền Qwen3-4B}
+
+Qwen3~\cite{yang2025qwen3} là họ mô hình ngôn ngữ mã nguồn mở do Alibaba phát triển, trải rộng từ 0.6B đến 235B tham số, bao gồm cả kiến trúc dày (dense) và kiến trúc trộn chuyên gia (Mixture-of-Experts). Qwen3 hỗ trợ 119 ngôn ngữ, tích hợp cả chế độ suy luận có tư duy (thinking mode) lẫn chế độ phản hồi nhanh (non-thinking mode) và được phát hành dưới giấy phép Apache 2.0. Phiên bản Qwen3-4B đặc biệt mạnh về đa ngôn ngữ, trong đó có tiếng Việt, khiến nó trở thành lựa chọn nền lý tưởng cho các tác vụ pháp lý tiếng Việt.
+
+Trong khuôn khổ cuộc thi VLSP2025-LegalSML, ban tổ chức đã cung cấp mô hình \texttt{qwen3-4b-legal-pretrain} - một phiên bản Qwen3-4B đã được thích ứng miền (domain adaptation) qua quá trình tiền huấn luyện trên kho dữ liệu pháp lý tiếng Việt. Việc kế thừa mô hình này giúp báo cáo nghiên cứu tập trung vào giai đoạn tinh chỉnh theo chỉ dẫn (instruction tuning) thay vì phải xây dựng tri thức miền từ đầu.
+
+% ============================================================
+\section{Tinh chỉnh hiệu quả tham số (Parameter-Efficient Fine-Tuning)}
+% ============================================================
+
+\subsection{Tinh chỉnh toàn phần và giới hạn của nó}
+
+Tinh chỉnh toàn phần (Full Fine-Tuning - FFT) cập nhật toàn bộ tham số $\theta$ của mô hình bằng cách lan truyền ngược gradient qua mọi lớp:
+\begin{equation}
+  \theta \leftarrow \theta - \eta \nabla_\theta \mathcal{L}(\theta),
+\end{equation}
+trong đó $\eta$ là tốc độ học và $\mathcal{L}$ là hàm mất mát. Với mô hình Qwen3-4B có khoảng 4 tỷ tham số, quá trình này đòi hỏi:
+\begin{itemize}
+  \item Lưu trữ gradient cho tất cả 4B tham số (16 GB ở FP32);
+  \item Lưu trạng thái optimizer, ví dụ AdamW duy trì moment bậc nhất và bậc hai, tốn thêm 2 lần dung lượng tham số (32 GB);
+  \item Lưu activation để tính ngược gradient, đặc biệt tốn bộ nhớ với chuỗi dài.
+\end{itemize}
+Tổng yêu cầu VRAM có thể vượt 80 GB, vượt xa khả năng của các GPU thông dụng (T4 16 GB, A100 40 GB). Ngoài ra, mỗi tác vụ tinh chỉnh sinh ra một bản sao mô hình riêng, gây tốn kém lưu trữ.
+
+\subsection{Tinh chỉnh hiệu quả tham số - Tổng quan}
+
+Tinh chỉnh hiệu quả tham số (Parameter-Efficient Fine-Tuning - PEFT) là nhóm kỹ thuật chỉ cập nhật một tập con nhỏ tham số $\theta' \subset \theta$ (hoặc một tập tham số bổ sung $\phi$ mới được thêm vào), trong khi đóng băng phần còn lại $\theta_{\text{frozen}}$ của mô hình gốc:
+\begin{equation}
+  \phi^* = \arg\min_{\phi} \mathcal{L}(\theta_{\text{frozen}}, \phi).
+\end{equation}
+Các phương pháp PEFT chính gồm: (i) \emph{adapter tuning} - chèn các module nhỏ giữa các lớp; (ii) \emph{prefix/prompt tuning} - thêm các token mềm vào đầu chuỗi; (iii) \emph{low-rank adaptation} (LoRA và các biến thể) - phân tích lượng cập nhật trọng số thành tích ma trận hạng thấp. LoRA và QLoRA là hai kỹ thuật được áp dụng trong báo cáo nghiên cứu này, được trình bày chi tiết ở các mục dưới đây.
+
+\subsection{LoRA - Low-Rank Adaptation}
+
+\subsubsection{Giả thuyết hạng nội tại thấp}
+
+LoRA~\cite{hu2022lora} dựa trên quan sát thực nghiệm rằng, khi thích ứng mô hình ngôn ngữ lớn với một tác vụ cụ thể, ma trận lượng cập nhật trọng số $\Delta W$ có \emph{hạng nội tại thấp} (low intrinsic rank). Nói cách khác, sự thay đổi cần thiết để đặc hóa mô hình có thể được biểu diễn chính xác (hoặc gần chính xác) trong một không gian con có chiều thấp hơn nhiều so với không gian tham số đầy đủ.
+
+\subsubsection{Phân tích hạng thấp}
+
+Thay vì cập nhật trực tiếp ma trận trọng số $W_0 \in \mathbb{R}^{d \times k}$, LoRA biểu diễn lượng cập nhật dưới dạng tích của hai ma trận hạng thấp:
+\begin{equation}
+  W = W_0 + \Delta W = W_0 + BA,
+\end{equation}
+trong đó $B \in \mathbb{R}^{d \times r}$, $A \in \mathbb{R}^{r \times k}$ và $r \ll \min(d, k)$ là hạng của phép phân tích. Trong quá trình huấn luyện, $W_0$ được đóng băng và chỉ $A$, $B$ được cập nhật. Khởi tạo: $A \sim \mathcal{N}(0, \sigma^2)$ và $B = 0$, đảm bảo $\Delta W = BA = 0$ tại thời điểm bắt đầu huấn luyện - tức là mô hình khởi đầu với đúng hành vi của mô hình gốc. Lượng cập nhật được nhân thêm hệ số tỉ lệ $\frac{\alpha}{r}$, trong đó $\alpha$ là siêu tham số điều chỉnh biên độ thích ứng:
+\begin{equation}
+  h = W_0 x + \frac{\alpha}{r} BA x.
+\end{equation}
+
+\subsubsection{Hiệu quả và suy luận không tăng chi phí}
+
+Số lượng tham số huấn luyện của LoRA là $(d + k) \times r$, trong khi full fine-tuning cần $d \times k$ tham số. Với $r = 8$, $d = k = 4096$ (điển hình trong các mô hình 7B), LoRA giảm số tham số từ 16.7M xuống còn 65K - tức giảm khoảng 256 lần cho mỗi ma trận. Trên GPT-3 175B, điều này tương đương giảm hơn 10.000 lần tổng tham số huấn luyện. Sau khi huấn luyện xong, $\Delta W = BA$ có thể được \emph{hợp nhất} (merge) vào $W_0$: $W \leftarrow W_0 + BA$, qua đó không phát sinh thêm chi phí tính toán tại thời điểm suy luận so với mô hình gốc. LoRA thường được áp dụng cho các ma trận chiếu query ($W^Q$) và value ($W^V$) trong cơ chế chú ý, tuy nhiên cũng có thể mở rộng sang $W^K$, $W^O$ và các ma trận FFN.
+
+\subsection{QLoRA - Quantized LoRA}
+
+\subsubsection{Động lực}
+
+Dù LoRA đã giảm đáng kể số tham số huấn luyện, mô hình nền vẫn cần được tải vào VRAM ở độ chính xác đầy đủ (FP16/BF16), đòi hỏi khoảng 8 GB cho một mô hình 4B tham số. QLoRA~\cite{dettmers2023qlora} giải quyết vấn đề này bằng cách lượng tử hóa mô hình nền xuống 4-bit, trong khi vẫn huấn luyện các adapter LoRA ở độ chính xác cao hơn.
+
+\subsubsection{Ba đóng góp kỹ thuật của QLoRA}
+
+\paragraph{4-bit NormalFloat (NF4).} Kiểu dữ liệu NF4 được thiết kế tối ưu cho phân phối của trọng số mô hình ngôn ngữ - vốn tuân theo phân phối chuẩn $\mathcal{N}(0, \sigma^2)$. NF4 chia miền giá trị thành 16 khoảng sao cho mỗi khoảng chứa xác suất bằng nhau theo phân phối chuẩn:
+\begin{equation}
+  q_i = \Phi^{-1}\!\left(\frac{i}{2^b - 1}\right), \quad i = 0, 1, \ldots, 2^b - 1,
+\end{equation}
+trong đó $\Phi^{-1}$ là hàm phân vị chuẩn và $b = 4$. Điều này đảm bảo mỗi mức lượng tử hóa được sử dụng đồng đều, giảm thiểu sai số lượng tử hóa so với lượng tử hóa tuyến tính đồng đều (uniform quantization).
+
+\paragraph{Lượng tử hóa kép (Double Quantization).} Mỗi khối trọng số cần lưu một hằng số lượng tử hóa (quantization constant) $c$ để giải lượng tử. QLoRA lượng tử hóa chính các hằng số này xuống 8-bit, tiết kiệm thêm trung bình 0,37 bit/tham số - tương đương khoảng 3 GB cho mô hình 65B tham số.
+
+\paragraph{Paged Optimizer.} Sử dụng bộ nhớ GPU thống nhất (unified memory) của NVIDIA để tự động chuyển trạng thái optimizer sang RAM CPU khi VRAM bị tràn trong các mini-batch dài và nạp lại khi cần. Cơ chế này giải quyết các đỉnh sử dụng bộ nhớ (memory spike) không thể dự đoán mà không làm dừng quá trình huấn luyện.
+
+\subsubsection{Quy trình huấn luyện QLoRA}
+
+Mô hình nền được tải và lưu trữ ở 4-bit NF4 (đóng băng), trong khi các adapter LoRA $A$, $B$ được khởi tạo và cập nhật ở BF16. Tại mỗi bước truyền thuận, trọng số 4-bit được \emph{giải lượng tử hóa tức thời} (on-the-fly dequantization) lên BF16 để tính toán, sau đó gradient được tính và áp dụng vào adapter. Gradient không bao giờ cần lưu qua trọng số 4-bit của mô hình nền, điều này đảm bảo tính chính xác của quá trình huấn luyện. Nhờ QLoRA, việc tinh chỉnh mô hình 65B có thể thực hiện trên một GPU 48 GB VRAM. Trong báo cáo nghiên cứu này, QLoRA là nền tảng kỹ thuật cho phép toàn bộ quy trình huấn luyện chạy được trên GPU T4 16 GB.
+
+% ============================================================
+\section{Tinh chỉnh theo chỉ dẫn (Instruction Tuning)}
+% ============================================================
+
+Tinh chỉnh theo chỉ dẫn (Instruction Tuning) là giai đoạn huấn luyện sau tiền huấn luyện, trong đó mô hình được tinh chỉnh trên tập dữ liệu gồm các cặp (chỉ dẫn, phản hồi mong muốn) để học cách tuân theo hướng dẫn của người dùng. Dữ liệu được định dạng theo mẫu hội thoại chuẩn, ví dụ ChatML hay Alpaca, trong đó vai trò của từng lượt được đánh dấu rõ ràng. Hàm mất mát chỉ tính trên phần phản hồi (không tính trên phần chỉ dẫn):
+\begin{equation}
+  \mathcal{L}_{\text{IT}} = -\sum_{t \in \mathcal{R}} \log P(x_t \mid x_{<t}; \theta),
+\end{equation}
+trong đó $\mathcal{R}$ là tập chỉ số của các token thuộc phần phản hồi. Cách tính này đảm bảo mô hình học cách sinh phản hồi mà không bị phạt vì không "dự đoán" được phần chỉ dẫn đầu vào.
+
+Sinh dữ liệu tổng hợp (synthetic data generation) bằng LLM mạnh hơn để làm dữ liệu instruction tuning cho LLM nhỏ hơn là một phương pháp ngày càng phổ biến, đặc biệt trong các miền thiếu dữ liệu chú thích thủ công như pháp lý tiếng Việt.
+
+% ============================================================
+\section{Xử lý ngôn ngữ tự nhiên trong lĩnh vực pháp lý tiếng Việt}
+% ============================================================
+
+NLP pháp lý là lĩnh vực ứng dụng đòi hỏi độ chính xác cao và khả năng suy luận có cấu trúc. Văn bản pháp luật có đặc thù về thuật ngữ chuyên ngành, cấu trúc phân cấp (điều, khoản, điểm) và yêu cầu lập luận chặt chẽ. Đối với tiếng Việt - một ngôn ngữ ít tài nguyên trong miền pháp lý - thách thức lớn nhất là sự khan hiếm dữ liệu chú thích chất lượng cao.
+
+Ba tác vụ trong cuộc thi VLSP2025-LegalSML phản ánh các năng lực cốt lõi: (1) \emph{Suy luận tự nhiên} (NLI) - thực chất là bài toán đánh giá tính hữu ích của trích dẫn (citation usefulness) - yêu cầu xác định điều luật được cung cấp có thể dùng để trả lời câu hỏi cho trước hay không; (2) \emph{Trắc nghiệm} (Multiple Choice) kiểm tra khả năng truy hồi và áp dụng tri thức pháp lý; (3) \emph{Tam đoạn luận} (Syllogism) đòi hỏi mô hình sinh ra lập luận có cấu trúc gồm tiền đề lớn (quy phạm pháp luật), tiền đề nhỏ (tình huống thực tế) và kết luận - đây là tác vụ khó nhất, phản ánh đúng bản chất của quá trình áp dụng pháp luật.
+
+% ============================================================
+\section{Các công trình liên quan}
+% ============================================================
+
+\subsection{Mô hình ngôn ngữ chuyên ngành pháp lý}
+
+Trên thế giới, nhiều nỗ lực đã hướng tới xây dựng mô hình ngôn ngữ chuyên dụng cho pháp lý. SaulLM-7B~\cite{colombo2024saullm} là mô hình 7B đầu tiên thiết kế riêng cho lĩnh vực luật, lấy nền Mistral 7B và được huấn luyện trên 30 tỷ token văn bản pháp lý tiếng Anh. Về đánh giá năng lực suy luận pháp lý, LegalBench~\cite{guha2023legalbench} cung cấp một benchmark gồm 162 tác vụ thuộc 6 loại lập luận pháp lý, được xây dựng cùng các luật sư chuyên nghiệp và đã được dùng để đánh giá 20 LLM mã nguồn mở lẫn thương mại. Các công trình này cho thấy hiệu quả của việc chuyên biệt hóa mô hình theo miền pháp lý, song chủ yếu tập trung vào tiếng Anh.
+
+\subsection{NLP pháp lý tiếng Việt}
+
+Đối với tiếng Việt, VLQA~\cite{nguyen2025vlqa} là bộ dữ liệu hỏi đáp pháp lý toàn diện và chất lượng cao nhất tính đến nay, gồm 3.129 câu hỏi được chuyên gia chú thích, kết hợp với 59.636 điều luật trải rộng 27 lĩnh vực pháp lý. Bên cạnh đó, ViBidLQA~\cite{ha2024vibidlqa} tập trung vào lĩnh vực Luật Đấu thầu với dữ liệu được sinh tổng hợp bằng LLM. Trong hướng truy xuất tài liệu, công trình của Phạm và cộng sự~\cite{son2024vietnamese} đã cải thiện chất lượng truy xuất văn bản pháp lý tiếng Việt bằng hơn 500.000 truy vấn tổng hợp, kết hợp BGE-M3, BM25 và tìm kiếm ngữ nghĩa. Các nghiên cứu này khẳng định vai trò then chốt của dữ liệu tổng hợp trong việc khắc phục tình trạng khan hiếm dữ liệu pháp lý tiếng Việt.
+
+\subsection{Tổng hợp và tăng cường dữ liệu}
+
+Vì dữ liệu pháp lý chú thích thủ công rất tốn kém, tổng hợp dữ liệu trở thành hướng tiếp cận chủ đạo. Self-Instruct~\cite{wang2022self} đề xuất sinh 100.000 ví dụ chỉ dẫn từ 175 mẫu hạt giống ban đầu, đặt nền móng cho các phương pháp tăng cường dữ liệu dựa trên LLM hiện đại. Trong miền pháp lý cụ thể, DALE~\cite{ghosh2023dale} xây dựng một framework tăng cường dữ liệu dùng kiến trúc encoder-decoder với cơ chế che chọn lọc (selective masking), giúp cải thiện hiệu năng từ 1\% đến 50\% trên 13 bộ dữ liệu pháp lý ít tài nguyên.
+
+\subsection{Các phương pháp dẫn đầu VLSP2025-LegalSML}
+
+Hai phương pháp đạt thứ hạng cao nhất tại cuộc thi VLSP2025-LegalSML là nguồn cảm hứng trực tiếp cho báo cáo nghiên cứu. Phương pháp MinLegal~\cite{luan2025minlegal} (hạng 2, score 0.7947) áp dụng quy trình hai giai đoạn: ở giai đoạn 1 huấn luyện ba adapter LoRA riêng cho ba tác vụ rồi hợp nhất bằng nội suy tuyến tính, ở giai đoạn 2 tinh chỉnh toàn phần trong 2 epoch trên tập dữ liệu gộp; dữ liệu được mở rộng từ 440 lên 3.537 mẫu nhờ sinh few-shot bằng Gemini 2.5 Flash, đạt MC=95,89\%, NLI=97,33\%, Syllogism=62,50\%. Phương pháp Bosch@AI~\cite{quang2025bosch} (hạng 1, score 0.8108) tập trung vào tinh chỉnh theo chỉ dẫn với chuỗi suy luận (CoT) theo khía cạnh (aspect-based) sinh bằng GPT-4o, mở rộng dữ liệu lên 200.000 ví dụ và dùng QLoRA rank=32, đạt NLI=97,00\%, MC=92,67\%\footnote{Bảng kết quả trên leaderboard của Bosch@AI ghi nhãn tác vụ trắc nghiệm là ``QA''; trong báo cáo nghiên cứu này chúng tôi thống nhất gọi là Trắc nghiệm (Multiple Choice, MC) xuyên suốt.}, Syllogism=53,58\%.
+
+Phân tích hai phương pháp cho thấy: MinLegal mạnh về tam đoạn luận nhưng tốn kém trong quá trình sinh dữ liệu, còn Bosch@AI mạnh về truy hồi tri thức nhưng đòi hỏi hạ tầng lớn. Báo cáo nghiên cứu này kế thừa quy trình hai giai đoạn LoRA-to-Full của MinLegal, đồng thời tích hợp ý tưởng trích xuất khía cạnh của Bosch@AI vào pipeline sinh dữ liệu, hướng tới sự cân bằng giữa chất lượng và chi phí trên môi trường tính toán hạn chế.
