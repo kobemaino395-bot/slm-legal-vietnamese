@@ -11,8 +11,8 @@ __pycache__/
 .venv/
 venv/
 
-# Data (regenerate via src/data_generation.py)
-data/generated/checkpoints/
+# Data checkpoints (regenerate via src/data_generation.py)
+data/checkpoints/
 data/data.zip
 
 # Kaggle output (regenerate via notebook)

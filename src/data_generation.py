@@ -1,20 +1,28 @@
-# Mục đích: Sinh dữ liệu huấn luyện tổng hợp từ VLSP2025-LegalSML
+# Mục đích: Sinh dữ liệu huấn luyện tổng hợp cho SLM pháp luật Việt Nam
 #           bằng Anthropic Claude Haiku 4.5 theo 2 chiến lược:
 #           - Strategy A (MinLegal): Few-shot sampling
-#           - Strategy B (Bosch): Aspect-based Chain-of-Thought
+#           - Strategy B (Bosch@AI): Aspect-based Chain-of-Thought
+#
+# Tham khảo:
+#   - MinLegal: https://aclanthology.org/2025.vlsp-1.24.pdf
+#   - Bosch@AI: https://aclanthology.org/2025.vlsp-1.22.pdf
 #
 # Yêu cầu:
 #   - Python 3.10+
 #   - pip install anthropic datasets python-dotenv
 #   - ANTHROPIC_API_KEY trong environment (.env) hoặc Colab Secrets
 #
-# Cách chạy (đặt CWD ở gốc repo để ghi vào data/):
+# Cách chạy:
 #   python src/data_generation.py
 #
 # Output:
-#   data/generated/train_mc.jsonl
-#   data/generated/train_nli.jsonl
-#   data/generated/train_syllogism.jsonl
+#   data/train_mc.jsonl
+#   data/train_nli.jsonl
+#   data/train_syllogism.jsonl
+#
+# Lưu ý:
+#   - Dữ liệu evaluation lấy trực tiếp từ HuggingFace: VLSP2025-LegalSML/Public-Test
+#   - Script này chỉ sinh dữ liệu training, không lưu dữ liệu gốc
 
 import os
 import json
@@ -38,29 +46,28 @@ except ImportError:
 CONFIG = {
     # Anthropic API
     "model": "claude-haiku-4-5-20251001",
-    "rate_limit_sec": 1.0,        # Giây giữa các call (Tier 1 thoải mái)
+    "rate_limit_sec": 1.0,
     "max_retries": 4,
     "max_tokens": 4096,
 
     # Mục tiêu sinh dữ liệu (tổng ~2400)
-    "target_mc": 900,             # Multiple Choice
-    "target_nli": 900,            # NLI
-    "target_syllogism": 600,      # Syllogism
+    "target_mc": 900,
+    "target_nli": 900,
+    "target_syllogism": 600,
 
     # Few-shot config (Strategy A)
-    "fewshot_n": 5,               # Số ví dụ mẫu mỗi prompt
-    "samples_per_call": 6,        # Số mẫu mới yêu cầu mỗi call
+    "fewshot_n": 5,
+    "samples_per_call": 6,
 
     # Checkpoint
     "checkpoint_every": 30,
 
     # Paths
-    "data_dir": "data",
-    "output_dir": "data/generated",
-    "checkpoint_dir": "data/generated/checkpoints",
+    "output_dir": "data",
+    "checkpoint_dir": "data/checkpoints",
 
-    # Dataset
-    "dataset_repo": "VLSP2025-LegalSML/Public-Test",
+    # Dataset nguồn (VLSP2025-LegalSML Public Test)
+    "source_dataset": "VLSP2025-LegalSML/Public-Test",
 
     # Seed
     "seed": 99,
@@ -74,7 +81,7 @@ SYSTEM_PROMPT = "Bạn là một chuyên gia pháp luật Việt Nam."
 
 random.seed(CONFIG["seed"])
 
-for d in [CONFIG["data_dir"], CONFIG["output_dir"], CONFIG["checkpoint_dir"]]:
+for d in [CONFIG["output_dir"], CONFIG["checkpoint_dir"]]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
 # ═══════════════════════════════════════════════════════════════
@@ -156,16 +163,16 @@ def extract_json(text: str) -> list | dict | None:
     return None
 
 # ═══════════════════════════════════════════════════════════════
-# DATA LOADING
+# DATA LOADING (từ VLSP2025-LegalSML Public Test)
 # ═══════════════════════════════════════════════════════════════
 
-print("\nLoading VLSP2025-LegalSML dataset...")
+print(f"\nLoading source data from {CONFIG['source_dataset']}...")
 
 from datasets import load_dataset
 
-mc_raw = load_dataset(CONFIG["dataset_repo"], "multichoice_questions", split="train")
-nli_raw = load_dataset(CONFIG["dataset_repo"], "nli_questions", split="train")
-syllo_raw = load_dataset(CONFIG["dataset_repo"], "syllogism_questions", split="train")
+mc_raw = load_dataset(CONFIG["source_dataset"], "multichoice_questions", split="train")
+nli_raw = load_dataset(CONFIG["source_dataset"], "nli_questions", split="train")
+syllo_raw = load_dataset(CONFIG["source_dataset"], "syllogism_questions", split="train")
 
 print(f"  MC: {len(mc_raw)} | NLI: {len(nli_raw)} | Syllogism: {len(syllo_raw)}")
 
@@ -242,13 +249,7 @@ def fingerprint(text: str) -> str:
 LETTER2IDX = {"A": 0, "B": 1, "C": 2, "D": 3}
 
 def normalize_answer(task: str, assistant: str):
-    """Kiểm tra & chuẩn hóa đáp án cho khớp dữ liệu gốc.
-
-    Trả về (assistant_clean, answer) nếu hợp lệ, hoặc None nếu không xác định
-    được đáp án (mẫu sẽ bị loại, không đưa vào dữ liệu sinh).
-    - mc:  answer là int 0-3, assistant chuẩn hóa về một chữ cái "A/B/C/D".
-    - nli: answer là int 0/1, assistant chuẩn hóa về "Có"/"Không".
-    """
+    """Kiểm tra & chuẩn hóa đáp án."""
     a = (assistant or "").strip()
 
     if task == "mc":
@@ -275,11 +276,7 @@ def normalize_answer(task: str, assistant: str):
     return None
 
 def strip_fewshot_labels(text: str) -> str:
-    """Làm sạch nhãn few-shot mà model đôi khi sao chép lại từ ví dụ trong
-    prompt của chiến lược A (các cụm 'VÍ DỤ n:', 'ĐỀ:', 'ĐÁP:').
-
-    Ví dụ: 'ĐỀ: Câu hỏi: ...' -> 'Câu hỏi: ...'.
-    """
+    """Làm sạch nhãn few-shot."""
     if not text:
         return text
     cleaned = re.sub(r"VÍ\s*DỤ\s*\d+\s*:", "", text, flags=re.IGNORECASE)
@@ -367,16 +364,12 @@ def generate_strategy_a(task: str, pool: list, target: int) -> list:
             print(f"  Progress: {len(output)}/{target}")
 
     save_jsonl(output, ckpt_path)
-    print(f"  [OK] Generated: {len(output)} samples (rejected {rejected} mẫu không hợp lệ đáp án)")
+    print(f"  [OK] Generated: {len(output)} samples (rejected {rejected})")
     return output[:target]
 
 # ═══════════════════════════════════════════════════════════════
-# STRATEGY B: ASPECT-BASED CoT (Bosch approach)
+# STRATEGY B: ASPECT-BASED CoT (Bosch@AI approach)
 # ═══════════════════════════════════════════════════════════════
-# Mô phỏng pipeline 2 bước của Bosch@AI:
-#   B.1 — Aspect Extraction: tách 1-2 khía cạnh pháp lý từ điều luật
-#   B.2 — CoT Generation: với mỗi khía cạnh, sinh ví dụ kèm chuỗi suy
-#         luận trong thẻ <think>...</think> cho tam đoạn luận.
 
 ASPECT_SYSTEM = "Bạn là một chuyên gia pháp luật Việt Nam."
 
@@ -427,14 +420,12 @@ def generate_strategy_b(nli_pool: list, target: int) -> list:
         legal_doc = docs[doc_idx]
         doc_idx += 1
 
-        # Bước B.1: trích khía cạnh
         aspect_resp = claude_call(aspect_extraction_prompt(legal_doc), system=ASPECT_SYSTEM)
         aspect_obj = extract_json(aspect_resp) or {}
         aspects = aspect_obj.get("aspects") if isinstance(aspect_obj, dict) else None
         if not aspects:
             aspects = ["nội dung chính của quy định"]
 
-        # Bước B.2: sinh CoT tam đoạn luận theo khía cạnh
         response = claude_call(cot_syllogism_prompt(legal_doc, aspects), system=ASPECT_SYSTEM)
         items = extract_json(response) or []
 
@@ -442,8 +433,6 @@ def generate_strategy_b(nli_pool: list, target: int) -> list:
         for item in items:
             if isinstance(item, dict) and item.get("question") and item.get("reasoning"):
                 reasoning = str(item["reasoning"]).strip()
-                # Kiểm tra hợp lệ: lời giải phải có đủ ba thành phần của tam
-                # đoạn luận — "Tiền đề lớn", "Tiền đề nhỏ" và "Kết luận".
                 if not all(kw in reasoning for kw in ("Tiền đề lớn", "Tiền đề nhỏ", "Kết luận")):
                     rejected += 1
                     continue
@@ -474,7 +463,7 @@ def generate_strategy_b(nli_pool: list, target: int) -> list:
             print(f"  Progress: {len(output)}/{target}")
 
     save_jsonl(output, ckpt_path)
-    print(f"  [OK] Generated: {len(output)} samples (rejected {rejected} mẫu thiếu cấu trúc tam đoạn luận)")
+    print(f"  [OK] Generated: {len(output)} samples (rejected {rejected})")
     return output[:target]
 
 # ═══════════════════════════════════════════════════════════════
@@ -484,7 +473,9 @@ def generate_strategy_b(nli_pool: list, target: int) -> list:
 def main():
     start_time = datetime.now()
     print(f"\n{'='*60}")
-    print("DATA GENERATION - SLM Vietnamese Legal (Claude Haiku 4.5)")
+    print("DATA GENERATION - SLM Vietnamese Legal")
+    print(f"Model: {CONFIG['model']}")
+    print(f"Source: {CONFIG['source_dataset']}")
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*60}")
 
@@ -507,9 +498,7 @@ def main():
     print(f"  Total generated: {len(gen_mc) + len(gen_nli) + len(gen_syllo)}")
     print(f"  After dedup: {len(all_generated)} (removed {duplicates_removed})")
 
-    # Convert to chat format — chỉ giữ các trường khớp dữ liệu gốc
-    # (messages / task / answer). KHÔNG trộn dữ liệu gốc vào tập train để
-    # tránh rò rỉ: dữ liệu gốc chỉ dùng cho evaluation (lưu ở data/original/).
+    # Convert to chat format
     def to_chat_format(rec):
         return {
             "messages": [
@@ -522,14 +511,12 @@ def main():
         }
 
     gen_chat = [to_chat_format(r) for r in all_generated]
+    random.shuffle(gen_chat)
 
-    combined = list(gen_chat)
-    random.shuffle(combined)
-
-    # Save
+    # Save by task
     print(f"\n[Save Output]")
     by_task = {"mc": [], "nli": [], "syllogism": []}
-    for r in combined:
+    for r in gen_chat:
         by_task[r["task"]].append(r)
 
     for task, records in by_task.items():
@@ -537,19 +524,7 @@ def main():
         save_jsonl(records, path)
         print(f"  {path}: {len(records)} samples")
 
-    # KHÔNG lưu train_combined.jsonl: tập tổng hợp cho giai đoạn 2 được
-    # gộp trực tiếp trong notebook từ 3 file train con (single source of
-    # truth) để tránh lệch dữ liệu khi chỉnh sửa.
-
-    # Lưu bản gốc để evaluation
-    orig_dir = f"{CONFIG['data_dir']}/original"
-    Path(orig_dir).mkdir(parents=True, exist_ok=True)
-    save_jsonl(mc_fmt, f"{orig_dir}/mc.jsonl")
-    save_jsonl(nli_fmt, f"{orig_dir}/nli.jsonl")
-    save_jsonl(syllo_fmt, f"{orig_dir}/syllo.jsonl")
-    print(f"  Saved original eval data to {orig_dir}/")
-
-    # Summary (chỉ in ra console, không lưu file)
+    # Summary
     end_time = datetime.now()
     duration = end_time - start_time
 
@@ -557,9 +532,10 @@ def main():
     print("SUMMARY")
     print(f"{'='*60}")
     print(f"Duration: {duration}")
-    print(f"Generated: MC={len(gen_mc)} NLI={len(gen_nli)} Syllo={len(gen_syllo)}")
-    print(f"Final: MC={len(by_task['mc'])} NLI={len(by_task['nli'])} Syllo={len(by_task['syllogism'])} Total={len(combined)}")
+    print(f"Generated: MC={len(by_task['mc'])} NLI={len(by_task['nli'])} Syllo={len(by_task['syllogism'])}")
+    print(f"Total: {len(gen_chat)} samples")
     print(f"Output: {CONFIG['output_dir']}/")
+    print(f"\nEvaluation data: load from HuggingFace {CONFIG['source_dataset']}")
     print(f"{'='*60}")
 
 if __name__ == "__main__":
