@@ -4,11 +4,20 @@ Fine-tuning mô hình ngôn ngữ nhỏ (Qwen3-4B) cho các tác vụ suy luận
 
 ## Giới Thiệu
 
-Dự án nghiên cứu fine-tuning Small Language Model cho các tác vụ suy luận pháp lý tiếng Việt:
+Dự án nghiên cứu fine-tuning Small Language Model cho các tác vụ suy luận pháp lý tiếng Việt, dựa trên bộ dữ liệu [VLSP2025-LegalSML](https://huggingface.co/datasets/VLSP2025-LegalSML/Public-Test):
 
 1. **Multiple Choice (MC)**: Trả lời câu hỏi trắc nghiệm pháp luật
 2. **Natural Language Inference (NLI)**: Xác định điều luật có trả lời được câu hỏi không
 3. **Syllogism (Tam đoạn luận)**: Phân tích tình huống pháp lý theo cấu trúc tam đoạn luận
+
+## Tài Liệu Tham Khảo
+
+Phương pháp của dự án được xây dựng dựa trên hai báo cáo dẫn đầu cuộc thi VLSP2025-LegalSML:
+
+| Đội | Hạng | Score | Báo cáo |
+|-----|------|-------|---------|
+| Bosch@AI | 1 | 81.08% | [PDF](https://aclanthology.org/2025.vlsp-1.22.pdf) |
+| MinLegal | 2 | 85.24% | [PDF](https://aclanthology.org/2025.vlsp-1.24.pdf) |
 
 ## Phương Pháp
 
@@ -50,25 +59,25 @@ pip install -r requirements.txt
 ├── src/
 │   └── data_generation.py    # Script sinh dữ liệu
 ├── data/
-│   ├── original/             # Dữ liệu gốc (evaluation)
 │   └── generated/            # Dữ liệu tổng hợp (training)
 ├── notebooks/
-│   └── kaggle/               # Notebooks training trên Kaggle
-├── report/                   # Luận án LaTeX
+│   └── *.ipynb               # Notebooks training
+├── report/                   # Báo cáo LaTeX
 └── requirements.txt
 ```
 
 ## Sử Dụng
 
-### 1. Dữ liệu training
+### 1. Dữ liệu
 
-Dữ liệu đã được publish trên Kaggle với 2346 samples:
-- **Dataset**: [wtihds4/vietnamese-legal-small-language](https://www.kaggle.com/datasets/wtihds4/vietnamese-legal-small-language)
-- MC: 894 samples
-- NLI: 900 samples
-- Syllogism: 552 samples
+**Training data** (2346 samples sinh từ Claude Haiku 4.5):
+- Kaggle: [wtihds4/vietnamese-legal-small-language](https://www.kaggle.com/datasets/wtihds4/vietnamese-legal-small-language)
+- MC: 894 | NLI: 900 | Syllogism: 552
 
-Nếu muốn sinh lại hoặc thêm dữ liệu:
+**Evaluation data** (440 samples từ cuộc thi):
+- HuggingFace: [VLSP2025-LegalSML/Public-Test](https://huggingface.co/datasets/VLSP2025-LegalSML/Public-Test)
+
+Nếu muốn sinh lại hoặc thêm dữ liệu training:
 ```bash
 # Cần ANTHROPIC_API_KEY trong .env
 python src/data_generation.py
@@ -84,7 +93,7 @@ python src/data_generation.py
 
 - Python 3.10+
 - CUDA (cho training)
-- Anthropic API key (cho sinh dữ liệu)
+- Anthropic API key (cho sinh dữ liệu và đánh giá syllogism)
 
 ## License
 
