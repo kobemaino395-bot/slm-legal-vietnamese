@@ -72,7 +72,7 @@ pip install -r requirements.txt
 | **Training** | Sinh từ Claude Haiku 4.5 | 2346 samples |
 | **Evaluation** | [VLSP2025-LegalSML/Public-Test](https://huggingface.co/datasets/VLSP2025-LegalSML/Public-Test) | 440 samples |
 
-Training data cũng được publish trên Kaggle: [wtihds4/vietnamese-legal-small-language](https://www.kaggle.com/datasets/wtihds4/vietnamese-legal-small-language)
+Training data cũng được publish trên Kaggle: [wtihds4/vlsp2025-legalsml-train-datasets](https://www.kaggle.com/datasets/wtihds4/vlsp2025-legalsml-train-datasets)
 
 ## Sử Dụng
 
@@ -86,7 +86,7 @@ python src/data_generation.py
 ### 2. Training trên Kaggle
 
 1. Tạo notebook trên Kaggle
-2. Thêm dataset `wtihds4/vietnamese-legal-small-language`
+2. Thêm dataset `wtihds4/vlsp2025-legalsml-train-datasets`
 3. Chạy notebook: `notebooks/qwen3-4b-legal-qlora-multitask-finetune.ipynb`
 
 ## Yêu Cầu
