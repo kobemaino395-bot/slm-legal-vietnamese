@@ -62,7 +62,8 @@ pip install -r requirements.txt
 
 ### 1. Dữ liệu training
 
-Đã có sẵn 2346 samples trong `data/generated/`:
+Dữ liệu đã được publish trên Kaggle với 2346 samples:
+- **Dataset**: [wtihds4/vietnamese-legal-small-language](https://www.kaggle.com/datasets/wtihds4/vietnamese-legal-small-language)
 - MC: 894 samples
 - NLI: 900 samples
 - Syllogism: 552 samples
@@ -75,7 +76,9 @@ python src/data_generation.py
 
 ### 2. Training
 
-Xem notebook: `notebooks/qwen3-4b-legal-qlora-multitask-finetune.ipynb`
+1. Tạo notebook trên Kaggle
+2. Thêm dataset `wtihds4/vietnamese-legal-small-language`
+3. Chạy notebook: `notebooks/qwen3-4b-legal-qlora-multitask-finetune.ipynb`
 
 ## Yêu Cầu
 
