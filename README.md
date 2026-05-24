@@ -55,10 +55,6 @@ pip install -r requirements.txt
 ```
 ├── src/
 │   └── data_generation.py    # Script sinh dữ liệu training
-├── data/
-│   ├── train_mc.jsonl        # Training data (sinh từ Claude)
-│   ├── train_nli.jsonl
-│   └── train_syllogism.jsonl
 ├── notebooks/
 │   └── *.ipynb               # Notebooks training
 ├── report/                   # Báo cáo LaTeX
@@ -69,10 +65,10 @@ pip install -r requirements.txt
 
 | Loại | Nguồn | Số lượng |
 |------|-------|----------|
-| **Training** | Sinh từ Claude Haiku 4.5 | 2346 samples |
-| **Evaluation** | [VLSP2025-LegalSML/Public-Test](https://huggingface.co/datasets/VLSP2025-LegalSML/Public-Test) | 440 samples |
+| **Training** | [Kaggle: wtihds4/vlsp2025-legalsml-train-datasets](https://www.kaggle.com/datasets/wtihds4/vlsp2025-legalsml-train-datasets) | 2346 samples |
+| **Evaluation** | [HuggingFace: VLSP2025-LegalSML/Public-Test](https://huggingface.co/datasets/VLSP2025-LegalSML/Public-Test) | 440 samples |
 
-Training data cũng được publish trên Kaggle: [wtihds4/vlsp2025-legalsml-train-datasets](https://www.kaggle.com/datasets/wtihds4/vlsp2025-legalsml-train-datasets)
+Training data được sinh từ Claude Haiku 4.5 và publish trên Kaggle.
 
 ## Sử Dụng
 
