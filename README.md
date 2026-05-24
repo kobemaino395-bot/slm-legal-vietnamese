@@ -91,24 +91,6 @@ python src/data_generation.py
 - CUDA (cho training)
 - Anthropic API key (cho sinh dữ liệu và đánh giá syllogism)
 
-## Tham Khảo
-
-```bibtex
-@inproceedings{bosch2025vlsp,
-  title={Bosch@AI at VLSP2025-LegalSLM},
-  booktitle={Proceedings of VLSP 2025},
-  year={2025},
-  url={https://aclanthology.org/2025.vlsp-1.22.pdf}
-}
-
-@inproceedings{minlegal2025vlsp,
-  title={MinLegal at VLSP2025-LegalSLM},
-  booktitle={Proceedings of VLSP 2025},
-  year={2025},
-  url={https://aclanthology.org/2025.vlsp-1.24.pdf}
-}
-```
-
 ## License
 
 Dự án phục vụ mục đích nghiên cứu và học thuật.
