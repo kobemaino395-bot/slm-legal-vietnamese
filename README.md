@@ -4,7 +4,7 @@ Fine-tuning mô hình ngôn ngữ nhỏ (Qwen3-4B) cho các tác vụ suy luận
 
 ## Giới Thiệu
 
-Dự án này tham gia cuộc thi **VLSP2025-LegalSML**, tập trung vào việc fine-tuning Small Language Model để giải quyết các bài toán:
+Dự án nghiên cứu fine-tuning Small Language Model cho các tác vụ suy luận pháp lý tiếng Việt:
 
 1. **Multiple Choice (MC)**: Trả lời câu hỏi trắc nghiệm pháp luật
 2. **Natural Language Inference (NLI)**: Xác định điều luật có trả lời được câu hỏi không
@@ -60,8 +60,14 @@ pip install -r requirements.txt
 
 ## Sử Dụng
 
-### 1. Sinh dữ liệu training
+### 1. Dữ liệu training
 
+Đã có sẵn 2346 samples trong `data/generated/`:
+- MC: 894 samples
+- NLI: 900 samples
+- Syllogism: 552 samples
+
+Nếu muốn sinh lại hoặc thêm dữ liệu:
 ```bash
 # Cần ANTHROPIC_API_KEY trong .env
 python src/data_generation.py
