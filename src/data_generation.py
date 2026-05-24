@@ -204,7 +204,7 @@ def format_nli(ex):
     }
 
 def format_syllo(ex):
-    user = f"Tình huống pháp lý:\n{ex['question']}\n\nPhân tích theo tam đoạn luận:\nTiền đề lớn: ...\nTiền đề nhỏ: ...\nKết luận: ..."
+    user = f"Tình huống pháp lý:\n{ex['question']}\n\nHãy phân tích theo cấu trúc tam đoạn luận:\nTiền đề lớn: ...\nTiền đề nhỏ: ...\nKết luận: ..."
     return {
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
