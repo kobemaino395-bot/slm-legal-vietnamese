@@ -10,11 +10,52 @@ Qwen3~\cite{yang2025qwen3} là họ mô hình ngôn ngữ mã nguồn mở do Al
 
 \section{Kỹ thuật tinh chỉnh LoRA và QLoRA}
 
-Tinh chỉnh toàn phần (Full Fine-Tuning) cập nhật toàn bộ tham số $\theta$ của mô hình, đòi hỏi lưu trữ gradient, trạng thái optimizer và activation cho hàng tỷ tham số. Với mô hình 4B tham số, tổng yêu cầu VRAM có thể vượt 80GB, vượt xa khả năng của các GPU thông dụng như T4 (16GB). Tinh chỉnh hiệu quả tham số (Parameter-Efficient Fine-Tuning - PEFT) giải quyết vấn đề này bằng cách chỉ cập nhật một tập con nhỏ tham số trong khi đóng băng phần còn lại.
+Khi muốn dạy một mô hình ngôn ngữ lớn (LLM) thực hiện một tác vụ mới, cách truyền thống là \textbf{tinh chỉnh toàn phần} (Full Fine-Tuning): cập nhật tất cả các tham số của mô hình. Tuy nhiên, với mô hình có hàng tỷ tham số, cách này đòi hỏi bộ nhớ GPU rất lớn (thường trên 80GB) và tốn nhiều thời gian~\cite{hf_peft}. Để giải quyết vấn đề này, các kỹ thuật \textbf{tinh chỉnh hiệu quả tham số} (Parameter-Efficient Fine-Tuning - PEFT) ra đời, cho phép chỉ cập nhật một phần nhỏ tham số trong khi ``đóng băng'' phần còn lại~\cite{lightning_lora}.
 
-LoRA (Low-Rank Adaptation)~\cite{hu2022lora} dựa trên quan sát rằng ma trận lượng cập nhật trọng số $\Delta W$ có hạng nội tại thấp. Thay vì cập nhật trực tiếp ma trận $W_0 \in \mathbb{R}^{d \times k}$, LoRA biểu diễn lượng cập nhật dưới dạng tích hai ma trận hạng thấp: $W = W_0 + BA$, trong đó $B \in \mathbb{R}^{d \times r}$, $A \in \mathbb{R}^{r \times k}$ và $r \ll \min(d, k)$. Với $r = 16$ và $d = k = 4096$, LoRA giảm số tham số huấn luyện hàng trăm lần so với tinh chỉnh toàn phần. Sau huấn luyện, $\Delta W = BA$ có thể được hợp nhất vào $W_0$, không phát sinh thêm chi phí tính toán khi suy luận.
+\subsection{LoRA -- Low-Rank Adaptation}
 
-QLoRA~\cite{dettmers2023qlora} mở rộng LoRA bằng cách lượng tử hóa mô hình nền xuống 4-bit, trong khi vẫn huấn luyện adapter ở độ chính xác cao. Ba đóng góp kỹ thuật chính gồm: (1) kiểu dữ liệu 4-bit NormalFloat (NF4) tối ưu cho phân phối trọng số mô hình ngôn ngữ; (2) lượng tử hóa kép để tiết kiệm thêm bộ nhớ; (3) paged optimizer để xử lý các đỉnh sử dụng bộ nhớ. Nhờ QLoRA, việc tinh chỉnh mô hình 4B tham số có thể thực hiện trên GPU T4 16GB -- nền tảng kỹ thuật cho phép toàn bộ quy trình của nghiên cứu này chạy trên môi trường notebook miễn phí.
+LoRA (Low-Rank Adaptation)~\cite{hu2022lora} là một kỹ thuật PEFT phổ biến, dựa trên một ý tưởng đơn giản: khi tinh chỉnh mô hình cho một tác vụ cụ thể, lượng thay đổi cần thiết trong các trọng số thực ra có thể được biểu diễn trong một không gian có chiều thấp hơn nhiều so với không gian gốc~\cite{towardsdatascience_lora}.
+
+\textbf{Ý tưởng chính.} Thay vì cập nhật trực tiếp ma trận trọng số $W$ có kích thước lớn ($d \times k$, với $d$ và $k$ có thể lên tới hàng nghìn), LoRA ``chèn'' thêm hai ma trận nhỏ $A$ và $B$ vào mạng. Lượng thay đổi $\Delta W$ được tính bằng tích của hai ma trận này:
+\begin{equation}
+W_{\text{mới}} = W_{\text{gốc}} + \Delta W = W_{\text{gốc}} + B \times A
+\end{equation}
+trong đó $A$ có kích thước $r \times k$, $B$ có kích thước $d \times r$, và $r$ (gọi là \textbf{rank}) là một số nhỏ, thường từ 4 đến 64~\cite{hf_lora_conceptual}.
+
+\textbf{Tại sao tiết kiệm bộ nhớ?} Số tham số cần huấn luyện giảm đáng kể. Ví dụ với $d = k = 4096$ và $r = 16$:
+\begin{itemize}
+    \item Tinh chỉnh toàn phần: $4096 \times 4096 = 16.777.216$ tham số
+    \item LoRA: $(4096 \times 16) + (16 \times 4096) = 131.072$ tham số
+\end{itemize}
+Như vậy LoRA giảm khoảng \textbf{128 lần} số tham số cần cập nhật~\cite{lightning_lora}.
+
+\textbf{Khởi tạo.} Ma trận $A$ được khởi tạo ngẫu nhiên theo phân phối Gaussian, còn $B$ được khởi tạo bằng 0. Điều này đảm bảo rằng ban đầu $\Delta W = B \times A = 0$, tức mô hình bắt đầu với đúng hành vi của mô hình gốc~\cite{towardsdatascience_lora}.
+
+\textbf{Hệ số tỉ lệ alpha.} LoRA sử dụng thêm một hệ số $\alpha$ để điều chỉnh mức độ ảnh hưởng của phần adapter:
+\begin{equation}
+h = W_{\text{gốc}} \cdot x + \frac{\alpha}{r} \cdot B \cdot A \cdot x
+\end{equation}
+Tỉ lệ $\frac{\alpha}{r}$ giúp kiểm soát biên độ thay đổi: $\alpha$ lớn hơn $r$ sẽ tăng ảnh hưởng của adapter, và ngược lại~\cite{hf_lora_conceptual}.
+
+\textbf{Hợp nhất sau huấn luyện.} Sau khi huấn luyện xong, có thể ``gộp'' $\Delta W = BA$ vào trọng số gốc: $W \leftarrow W + BA$. Khi đó, mô hình hoạt động như một mô hình thông thường mà không có thêm chi phí tính toán khi suy luận~\cite{lightning_lora}.
+
+\subsection{QLoRA -- Quantized LoRA}
+
+QLoRA~\cite{dettmers2023qlora} là phiên bản nâng cấp của LoRA, cho phép tinh chỉnh các mô hình rất lớn trên GPU có bộ nhớ hạn chế bằng cách kết hợp LoRA với kỹ thuật \textbf{lượng tử hóa} (quantization)~\cite{hf_qlora}.
+
+\textbf{Lượng tử hóa là gì?} Lượng tử hóa là kỹ thuật giảm độ chính xác của các số trong mô hình. Thay vì lưu mỗi tham số dưới dạng số thực 32-bit (float32) hoặc 16-bit (float16), ta có thể nén xuống 8-bit hoặc thậm chí 4-bit. Điều này giúp giảm đáng kể dung lượng bộ nhớ cần thiết~\cite{hf_quantization}.
+
+\textbf{Cách QLoRA hoạt động.} QLoRA áp dụng ba kỹ thuật chính~\cite{dettmers2023qlora}:
+
+\begin{enumerate}
+    \item \textbf{Lượng tử hóa 4-bit NF4}: Mô hình gốc được nén xuống 4-bit bằng định dạng NormalFloat (NF4), được thiết kế riêng cho phân phối trọng số của mạng neural. Mô hình 4B tham số chỉ chiếm khoảng 2GB thay vì 8GB (ở float16)~\cite{hf_qlora}.
+
+    \item \textbf{Adapter LoRA ở độ chính xác cao}: Trong khi mô hình gốc được giữ ở 4-bit và đóng băng, các ma trận adapter $A$ và $B$ vẫn được huấn luyện ở độ chính xác 16-bit (bfloat16 hoặc float16). Điều này đảm bảo quá trình học vẫn chính xác~\cite{lightning_lora}.
+
+    \item \textbf{Giải nén khi cần}: Khi tính toán, trọng số 4-bit được tạm thời giải nén lên 16-bit để thực hiện phép nhân ma trận, sau đó gradient chỉ cập nhật vào adapter. Quá trình này diễn ra tự động và không ảnh hưởng đến kết quả~\cite{hf_qlora}.
+\end{enumerate}
+
+\textbf{Lợi ích thực tế.} Nhờ QLoRA, việc tinh chỉnh mô hình 4 tỷ tham số có thể thực hiện trên GPU Tesla T4 với chỉ 16GB VRAM -- loại GPU miễn phí trên các nền tảng như Google Colab hay Kaggle. Đây là nền tảng kỹ thuật cho phép toàn bộ quy trình của nghiên cứu này chạy được trên môi trường notebook miễn phí~\cite{hf_peft}.
 
 \section{Tinh chỉnh theo chỉ dẫn}
 
