@@ -1,12 +1,12 @@
 \chapter{THỰC NGHIỆM VÀ THẢO LUẬN}
 
-Chương này trình bày môi trường thực nghiệm, quá trình chuẩn bị dữ liệu, kết quả của hai giai đoạn huấn luyện, phân tích đóng góp của từng chiến lược sinh dữ liệu và phân tích lỗi của mô hình đề xuất.
+Trong chương này, chúng tôi trình bày môi trường thực nghiệm và quá trình chuẩn bị dữ liệu, tiếp đó là các kết quả của hai giai đoạn huấn luyện và cuối cùng phân tích đóng góp của từng chiến lược sinh dữ liệu và phân tích lỗi của mô hình.
 
 \section{Môi trường thực nghiệm}
 
-Toàn bộ thực nghiệm được thực hiện trên nền tảng Kaggle Notebook (gói GPU miễn phí). Cấu hình sử dụng GPU NVIDIA Tesla T4 16GB VRAM: tuy Kaggle cấp phát hai GPU T4 nhưng quá trình huấn luyện qua Unsloth chỉ dùng một GPU duy nhất với mức tiêu thụ bộ nhớ dưới 15GB ngay cả ở bước tinh chỉnh toàn phần. Mã nguồn tự động phát hiện loại GPU và điều chỉnh siêu tham số: trên T4 sử dụng kích thước batch 2, hệ số tích lũy gradient 16 và độ chính xác fp16; nếu chạy trên A100 (40GB) sẽ tự chuyển sang batch 8, tích lũy 4 và bf16, giữ kích thước batch hiệu dụng bằng 32 trong cả hai trường hợp. Các kết quả báo cáo trong chương này đều thu được trên GPU T4.
+Toàn bộ thực nghiệm được thực hiện trên nền tảng Kaggle Notebook (gói GPU miễn phí). Cấu hình chúng tôi sử dụng GPU NVIDIA Tesla T4 16GB VRAM. Mã nguồn tự động phát hiện loại GPU và điều chỉnh siêu tham số: trên T4 sử dụng kích thước batch 2, hệ số tích lũy gradient 16 và độ chính xác fp16; nếu chạy trên A100 (40GB) sẽ tự chuyển sang batch 8, tích lũy 4 và bf16, giữ kích thước batch hiệu dụng bằng 32 trong cả hai trường hợp. Các kết quả báo cáo trong chương này đều thu được trên GPU T4.
 
-Về phần mềm, nghiên cứu sử dụng thư viện Unsloth để lượng tử hóa 4-bit và tăng tốc huấn luyện, kết hợp PEFT cho cơ chế adapter LoRA và UnslothTrainer (thay vì SFTTrainer của TRL để tránh các vấn đề tương thích phiên bản API trên môi trường notebook miễn phí) cho vòng huấn luyện giám sát. Mô hình sinh dữ liệu sử dụng Claude Haiku 4.5 (\texttt{claude-haiku-4-5}) thông qua Anthropic API; mô hình giám khảo cho tác vụ tam đoạn luận cũng dùng Claude Haiku 4.5 theo cơ chế LLM-as-a-Judge. Hạt giống ngẫu nhiên được cố định nhằm bảo đảm khả năng tái lập: giai đoạn sinh dữ liệu dùng seed 99, giai đoạn huấn luyện dùng seed 67. Bảng~\ref{tab:hyperparams} tổng hợp các siêu tham số chính.
+Về phần mềm, chúng tôi sử dụng thư viện Unsloth để lượng tử hóa 4-bit và tăng tốc huấn luyện, kết hợp PEFT (parameter-efficient fine-tuning) cho cơ chế adapter LoRA và UnslothTrainer (thay vì SFTTrainer của TRL để tránh các vấn đề tương thích phiên bản API trên môi trường notebook miễn phí) cho phần huấn luyện giám sát. Mô hình sinh dữ liệu sử dụng Claude Haiku 4.5 (\texttt{claude-haiku-4-5}) thông qua Anthropic API, mô hình giám khảo cho tác vụ tam đoạn luận cũng dùng Claude Haiku 4.5 theo cơ chế LLM-as-a-Judge. Hạt giống ngẫu nhiên được cố định nhằm bảo đảm khả năng tái lập (giai đoạn sinh dữ liệu dùng seed 99, giai đoạn huấn luyện dùng seed 67). Bảng~\ref{tab:hyperparams} tổng hợp các siêu tham số chính.
 
 \begin{table}[ht]
 \centering
@@ -31,7 +31,7 @@ Seed (sinh dữ liệu / huấn luyện) & 99 / 67 \\
 
 \section{Chuẩn bị dữ liệu}
 
-Dữ liệu gốc gồm 440 mẫu từ ba subset của VLSP2025-LegalSML Public Test. Quy trình sinh dữ liệu được thực hiện qua một mã nguồn Python độc lập, chạy trước khi huấn luyện. Bảng~\ref{tab:datagen} tổng hợp cấu hình sinh dữ liệu.
+Như nhắc ở các phần trước, dữ liệu gốc gồm 440 mẫu từ ba subset của VLSP2025-LegalSML Public Test và quy trình sinh dữ liệu được thực hiện qua một mã nguồn độc lập, chạy trước khi huấn luyện. Bảng~\ref{tab:datagen} tổng hợp cấu hình sinh dữ liệu.
 
 \begin{table}[ht]
 \centering
@@ -51,7 +51,7 @@ Tổng mẫu sinh & 2.346 \\
 \label{tab:datagen}
 \end{table}
 
-Thông qua quy trình tổng hợp kết hợp hai chiến lược (mô tả ở Chương~3), tập huấn luyện được mở rộng đáng kể. Bảng~\ref{tab:data} trình bày số lượng mẫu gốc và tổng hợp theo từng tác vụ.
+Thông qua quy trình tổng hợp kết hợp hai chiến lược, tập huấn luyện được mở rộng đáng kể. Bảng~\ref{tab:data} trình bày số lượng mẫu gốc và tổng hợp theo từng tác vụ.
 
 \begin{table}[ht]
 \centering
@@ -70,15 +70,15 @@ Tam đoạn luận    & 144 & 552 \\
 \label{tab:data}
 \end{table}
 
-Sau khi lọc các mẫu không hợp lệ về đáp án (MC, NLI) hoặc thiếu cấu trúc tam đoạn luận, và khử trùng lặp ngữ nghĩa, quy trình thu được 2.346 mẫu sinh hợp lệ. Toàn bộ 2.346 mẫu sinh này tạo thành tập huấn luyện, đạt tỉ lệ mở rộng khoảng 6x cho MC và NLI so với dữ liệu gốc. Riêng tam đoạn luận đạt 552 mẫu (thấp hơn mục tiêu ban đầu) do chiến lược B bị giới hạn bởi số văn bản luật nguồn; đây là một hướng có thể mở rộng thêm trong tương lai. Dữ liệu được lưu dạng JSON với cơ chế checkpoint cho phép tiếp tục khi phiên Colab bị ngắt. Đáng lưu ý, toàn bộ 440 mẫu gốc (kể cả 296 mẫu MC và NLI có nhãn) đều được giữ riêng làm tập đánh giá và không đưa vào huấn luyện, nhằm tách biệt hoàn toàn dữ liệu huấn luyện khỏi dữ liệu đánh giá để tránh rò rỉ. Phân bố nhãn của hai tác vụ NLI và trắc nghiệm được kiểm tra ở bước phân tích khám phá để bảo đảm tính cân bằng.
+Pipeline được thực hiện như chương 3 đã đề xuất. Phân bố nhãn của hai tác vụ NLI và trắc nghiệm được kiểm tra ở bước phân tích khám phá để bảo đảm tính cân bằng.
 
 \section{Kết quả Giai đoạn 1 - QLoRA theo tác vụ}
 
-Ở giai đoạn 1, ba adapter QLoRA được huấn luyện độc lập cho ba tác vụ, lần lượt trên 894 mẫu trắc nghiệm, 900 mẫu NLI và 552 mẫu tam đoạn luận, mỗi adapter 3 epoch với kích thước batch hiệu dụng 32. Việc tách riêng từng adapter giúp mỗi tác vụ học được đặc trưng chuyên biệt mà không bị nhiễu chéo. Ba adapter không được đánh giá riêng lẻ ở giai đoạn này (việc đánh giá đầy đủ được thực hiện sau giai đoạn 2); chúng được hợp nhất bằng nội suy tuyến tính với trọng số bằng nhau ($1/3$ mỗi adapter) tạo thành điểm khởi tạo cho giai đoạn 2.
+Ở giai đoạn 1, ba adapter QLoRA được huấn luyện độc lập cho ba tác vụ: lần lượt trên 894 mẫu trắc nghiệm, 900 mẫu NLI và 552 mẫu tam đoạn luận, mỗi adapter 3 epoch với kích thước batch hiệu dụng 32. Việc tách riêng từng adapter giúp mỗi tác vụ học được đặc trưng chuyên biệt mà không bị nhiễu chéo. Ba adapter không được đánh giá riêng lẻ ở giai đoạn này (việc đánh giá đầy đủ được thực hiện sau giai đoạn 2) mà chúng được hợp nhất bằng nội suy tuyến tính với trọng số bằng nhau ($1/3$ mỗi adapter) tạo thành điểm khởi tạo cho giai đoạn 2.
 
 \section{Kết quả Giai đoạn 2 - So sánh chính}
 
-Bảng~\ref{tab:main} là bảng kết quả chính, so sánh mô hình đề xuất (sau giai đoạn 2) với hai phương pháp tham chiếu MinLegal và Bosch@AI. Lưu ý rằng so sánh với hai phương pháp gốc mang tính tham chiếu định vị do khác biệt về điều kiện phần cứng và quy mô dữ liệu.
+Bảng~\ref{tab:main} là bảng kết quả chính, so sánh mô hình đề xuất (sau giai đoạn 2) với hai phương pháp gốc tham chiếu MinLegal và Bosch. Lưu ý rằng so sánh với hai phương pháp gốc mang tính tham chiếu định vị do khác biệt về điều kiện phần cứng và quy mô dữ liệu.
 
 \begin{table}[ht]
 \centering
@@ -95,24 +95,51 @@ Bosch@AI~\cite{quang2025bosch}   & 97,00 & 92,67 & 53,58 & 81,08 \\
 \label{tab:main}
 \end{table}
 
-Mô hình đề xuất đạt NLI=89,33\% (134/150), MC=86,99\% (127/146), Syllogism=56,70\% (điểm trung bình của giám khảo trên 144 mẫu) và điểm trung bình ba tác vụ là 77,67\%. Với khoảng 2.346 mẫu huấn luyện trên một GPU T4 16GB, mô hình đạt điểm trung bình thấp hơn MinLegal (85,24\%) và Bosch@AI (81,08\%) khoảng 3,4--7,6 điểm phần trăm -- một khoảng cách hợp lý xét theo chênh lệch lớn về quy mô dữ liệu (vài nghìn so với hàng trăm nghìn mẫu) và tài nguyên phần cứng. Đáng chú ý, ở tác vụ tam đoạn luận, mô hình đề xuất (56,70\%) vượt Bosch@AI (53,58\%) dù dùng ít dữ liệu hơn nhiều, cho thấy hiệu quả của việc bổ sung dữ liệu sinh theo khía cạnh (aspect-based) cho năng lực lập luận. Ngược lại, tác vụ NLI có khoảng cách lớn nhất so với hai phương pháp gốc (vốn đạt $\sim$97\%); nguyên nhân chủ yếu là tập huấn luyện NLI hoàn toàn là dữ liệu sinh tổng hợp (không trộn 296 mẫu gốc có nhãn nhằm tránh rò rỉ), nên nhãn ``Có''/``Không'' của dữ liệu sinh kém chính xác và cân bằng hơn so với dữ liệu thật. Cần lưu ý một đánh đổi có chủ ý: nghiên cứu chọn baseline \texttt{qwen3-4b-legal-pretrain} dù MinLegal báo cáo phiên bản Qwen3-4B-Base có thể nhỉnh hơn trên public test của họ; lựa chọn này nhằm tiết kiệm chi phí tính toán và phù hợp với tinh thần kế thừa giai đoạn domain pre-training của Bosch@AI.
+Mô hình đề xuất đạt NLI=89.33\% (134/150), MC=86.99\% (127/146), Syllogism=56.70\% (điểm trung bình của giám khảo trên 144 mẫu) và điểm trung bình ba tác vụ là 77.67\%. Với khoảng 2,346 mẫu huấn luyện trên một GPU T4 16GB, mô hình đạt điểm trung bình thấp hơn MinLegal (85.24\%) và Bosch (81.08\%) khoảng 3.4-7.6 điểm phần trăm, một khoảng cách hợp lý xét theo chênh lệch lớn về quy mô dữ liệu (vài nghìn so với hàng trăm nghìn mẫu) và tài nguyên phần cứng. Chúng tôi phát hiện rằng ở tác vụ tam đoạn luận, mô hình đề xuất (56.70\%) vượt Bosch (53.58\%) dù dùng ít dữ liệu hơn nhiều. Ngược lại, tác vụ NLI có khoảng cách lớn nhất so với hai phương pháp gốc (vốn đạt $\sim$97\%). Cần lưu ý một đánh đổi có chủ ý: Nghiên cứu chọn baseline \texttt{qwen3-4b-legal-pretrain} dù MinLegal báo cáo phiên bản Qwen3-4B-Base có thể nhỉnh hơn trên public test của họ. Lựa chọn này nhằm tiết kiệm chi phí tính toán và phù hợp với việc kế thừa giai đoạn domain pre-training của Bosch.
 
 \section{Phân tích theo câu hỏi nghiên cứu}
 
 \textbf{RQ1 - Quy trình hai giai đoạn có hiệu quả hơn chỉ dùng QLoRA?} Phác đồ hai giai đoạn của nghiên cứu kế thừa phát hiện của MinLegal~\cite{luan2025minlegal}, vốn báo cáo quy trình hai giai đoạn (85,24\%) vượt trội so với phương án chỉ dùng LoRA. Nghiên cứu không lặp lại thí nghiệm cắt bỏ LoRA-đơn-giai-đoạn do giới hạn tài nguyên nhưng quan sát được vai trò của giai đoạn 2 trong thực tế: giai đoạn này ``hòa giải'' ba năng lực riêng lẻ học được ở giai đoạn 1 thành một mô hình thống nhất và nhờ điểm khởi tạo tốt từ các adapter chuyên tác vụ, quá trình tinh chỉnh toàn phần hội tụ nhanh, ổn định chỉ trong hai epoch (148 bước).
 
-\textbf{RQ2 - Đóng góp của từng chiến lược sinh dữ liệu?} Phân tích định tính cho thấy hai chiến lược bù trừ cho nhau: chiến lược few-shot (A) nâng độ phủ và có lợi cho tác vụ truy hồi tri thức như trắc nghiệm, trong khi chiến lược aspect-based (B) nâng chất lượng lập luận và đặc biệt có lợi cho tác vụ tam đoạn luận - thể hiện rõ qua việc mô hình đề xuất vượt Bosch@AI ở tác vụ này dù dùng ít dữ liệu hơn nhiều. Kết quả này phù hợp với giả thuyết rằng việc kết hợp A+B mang lại sự cân bằng tốt hơn so với từng chiến lược riêng lẻ.
+\textbf{RQ2 - Đóng góp của từng chiến lược sinh dữ liệu?} Phân tích định tính cho thấy hai chiến lược bù trừ cho nhau:
+\begin{itemize}
+    \item Chiến lược few-shot nâng độ phủ và có lợi cho tác vụ truy hồi tri thức như trắc nghiệm
+    \item Chiến lược aspect-based nâng chất lượng lập luận và đặc biệt có lợi cho tác vụ tam đoạn luận, thể hiện rõ qua việc mô hình đề xuất vượt Bosch ở tác vụ này dù dùng ít dữ liệu hơn nhiều
+\end{itemize}
 
-\textbf{RQ3 - Quy trình có khả thi trên phần cứng hạn chế?} Toàn bộ pipeline (sinh dữ liệu, huấn luyện hai giai đoạn, đánh giá) đã chạy thành công trên một GPU Tesla T4 16GB miễn phí của Kaggle, xác nhận tính khả thi. Nhờ kết hợp lượng tử hóa 4-bit, gradient checkpointing và tích lũy gradient, nhu cầu bộ nhớ được giữ trong giới hạn 16GB ngay cả khi tinh chỉnh adapter trên mô hình bốn tỷ tham số.
+Kết quả này phù hợp với giả thuyết rằng việc kết hợp hai chiến lược sẽ mang lại sự cân bằng tốt hơn so với từng chiến lược riêng lẻ.
+
+\textbf{RQ3 - Quy trình có khả thi trên phần cứng hạn chế?} Toàn bộ pipeline (sinh dữ liệu, huấn luyện hai giai đoạn, đánh giá) đã chạy thành công trên một GPU Tesla T4 16GB miễn phí của Kaggle, xác nhận tính khả thi của nghiên cứu. Nhờ kết các phương pháp tối ưu hóa: hợp lượng tử hóa 4-bit, gradient checkpointing và tích lũy gradient, nhu cầu bộ nhớ được giữ trong giới hạn 16GB ngay cả khi tinh chỉnh adapter trên mô hình bốn tỷ tham số.
 
 \section{Phân tích lỗi}
 
-Phân tích định tính trên các mẫu mô hình trả lời sai cho thấy mỗi tác vụ có một số dạng lỗi đặc trưng. Dưới đây tổng hợp các dạng lỗi tiêu biểu theo từng tác vụ.
+Phần này chúng tôi sẽ phân tích định tính trên các mẫu mô hình trả lời sai, rút ra lại rằng mỗi tác vụ có một số dạng lỗi đặc trưng.
 
-\textbf{Tác vụ NLI (citation usefulness).} Các lỗi điển hình gồm: (1) mô hình trả lời ``Có'' khi điều luật chỉ liên quan về chủ đề nhưng không thực sự trả lời được câu hỏi; (2) trả lời ``Không'' với điều luật có chứa câu trả lời nhưng diễn đạt khác từ ngữ câu hỏi; (3) nhầm lẫn khi điều luật chứa nhiều khoản, chỉ một khoản liên quan; (4) bị đánh lừa bởi điều luật có thuật ngữ trùng với câu hỏi nhưng thuộc phạm vi điều chỉnh khác; (5) sai ở các câu hỏi đòi hỏi suy luận liên hệ giữa nhiều điều khoản.
+\textbf{Tác vụ trắc nghiệm (Multiple Choice)} Các lỗi thường gặp gồm: 
+\begin{itemize}
+    \item Chọn đáp án đúng một phần nhưng không đầy đủ nhất
+    \item Nhầm giữa hai lựa chọn có nội dung gần giống nhau
+    \item Sai ở câu hỏi về con số cụ thể (mức phạt, thời hạn, hạn mức)
+    \item Sai khi câu hỏi yêu cầu phủ định ("trường hợp nào không thuộc",...)
+\end{itemize}
 
-\textbf{Tác vụ trắc nghiệm (MC).} Các lỗi thường gặp gồm: (1) chọn đáp án đúng một phần nhưng không đầy đủ nhất; (2) nhầm giữa hai lựa chọn có nội dung gần giống nhau; (3) sai ở câu hỏi về con số cụ thể (mức phạt, thời hạn, hạn mức); (4) sai khi câu hỏi yêu cầu phủ định (``trường hợp nào không thuộc...''); (5) chọn theo trực giác phổ biến thay vì theo đúng quy phạm pháp luật hiện hành.
+\textbf{Tác vụ NLI (citation usefulness).} Các lỗi thường gặp gồm: 
 
-\textbf{Tác vụ tam đoạn luận (Syllogism).} Đây vẫn là điểm yếu lớn nhất, nhất quán với hai phương pháp gốc. Các lỗi gồm: (1) viện dẫn sai quy phạm pháp luật ở tiền đề lớn; (2) tiền đề nhỏ không bám sát tình huống được cho; (3) kết luận không suy ra logic từ hai tiền đề; (4) thiếu một trong ba thành phần của cấu trúc tam đoạn luận; (5) lập luận đúng cấu trúc nhưng nội dung pháp lý chung chung, thiếu chính xác.
+\begin{itemize}
+    \item Mô hình trả lời Có khi điều luật chỉ liên quan về chủ đề nhưng không thực sự trả lời được câu hỏi
+    \item Trả lời Không với điều luật có chứa câu trả lời nhưng diễn đạt khác từ ngữ câu hỏi
+    \item Bị đánh lừa bởi điều luật có thuật ngữ trùng với câu hỏi nhưng thuộc phạm vi điều chỉnh khác
+    \item Sai ở các câu hỏi đòi hỏi suy luận liên hệ giữa nhiều điều khoản.
+\end{itemize}
 
-Có thể nhận thấy nhiều lỗi ở cả ba tác vụ đều liên quan đến việc phân biệt các ngữ cảnh pháp lý tinh tế (chẳng hạn ranh giới giữa xử phạt hành chính và trách nhiệm hình sự) - đây chính là loại ngữ cảnh mà chiến lược sinh dữ liệu aspect-based hướng tới cải thiện. Ngoài ra, chất lượng của mô hình giám khảo Claude Haiku 4.5 đối với tác vụ tam đoạn luận là một yếu tố có thể ảnh hưởng đến điểm số và được thảo luận như một hạn chế ở phần Kết luận.
+\textbf{Tác vụ tam đoạn luận (Syllogism).} Đây vẫn là điểm yếu lớn nhất, nhất quán với hai phương pháp gốc của MinLegal và Bosch. Các lỗi gồm:
+
+\begin{itemize}
+    \item Quy luận sai quy phạm pháp luật ở tiền đề lớn
+    \item Tiền đề nhỏ không bám sát tình huống được cho
+    \item Kết luận không suy ra logic từ hai tiền đề
+    \item Thiếu một trong ba thành phần của cấu trúc tam đoạn luận
+    \item Lập luận đúng cấu trúc nhưng nội dung pháp lý chung chung, thiếu chính xác.
+\end{itemize}
+
+Chúng ta có thể rút ra nhận xét rằng nhiều lỗi ở cả ba tác vụ đều liên quan đến việc phân biệt các ngữ cảnh pháp lý tinh tế, nhỏ nhặt (chẳng hạn ranh giới giữa xử phạt hành chính và trách nhiệm hình sự). Đây chính là loại ngữ cảnh mà chiến lược sinh dữ liệu aspect-based của Bosch hướng tới cải thiện. Chất lượng của mô hình giám khảo Claude Haiku 4.5 đối với tác vụ tam đoạn luận là một yếu tố có thể ảnh hưởng đến điểm số.
